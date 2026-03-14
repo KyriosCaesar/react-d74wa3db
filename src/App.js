@@ -74,20 +74,34 @@ const translateRecipe = (recipe, targetLang) =>
   callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }]);
 
 const generateRecipeImage = async (recipe) => {
-  const prompt = `Photorealistic food photography of ${recipe.title}. Studio McGee aesthetic: warm neutral palette, creamy whites and earthy tones, natural soft window light, marble surface or linen tablecloth, handmade ceramic dish, fresh herb garnish, shallow depth of field, editorial styling, 4k, cinematic.`;
+  const directions = ["top-right", "top-left", "bottom-right", "bottom-left"];
+  const randomDirection = directions[Math.floor(Math.random() * directions.length)];
+  const props = [
+    "a vintage silver fork resting diagonally",
+    "a small ceramic bowl of sea salt",
+    "a sprig of fresh rosemary",
+    "a linen napkin folded loosely",
+    "a rustic wooden spoon",
+    "a small glass of olive oil",
+    "a cluster of cherry tomatoes on the vine",
+    "a wedge of lemon",
+  ];
+  const randomProp = props[Math.floor(Math.random() * props.length)];
+  const prompt = `A professional, top-down, centered, flat-lay food photograph of a perfectly round plate with ${recipe.title} arranged as described in the recipe: ${recipe.description || recipe.title}. The plate is centered against a seamless and full-frame background of a tablecloth or surface that matches the cultural style of this dish (${recipe.cuisine || "international"} cuisine). To the ${randomDirection} of the plate, place ${randomProp}. The entire frame is a square and looks like a clean, single image taken for a recipe book.`;
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1, aspectRatio: "16:9" },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ["IMAGE"] },
       }),
     }
   );
   const data = await response.json();
-  const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+  console.log("[Gemini Image] response:", JSON.stringify(data).slice(0, 500));
+  const b64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
   return b64 ? `data:image/png;base64,${b64}` : null;
 };
 
