@@ -2,6 +2,19 @@ import React, { useState, useRef, useCallback } from "react";
 
 const SAMPLE_RECIPES = [];
 
+const LANGUAGES = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "de", label: "Deutsch", flag: "🇩🇪" },
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+];
+
+const API_HEADERS = {
+  "Content-Type": "application/json",
+  "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+  "anthropic-version": "2023-06-01",
+  "anthropic-dangerous-direct-browser-access": "true",
+};
+
 const extractRecipePrompt = (imageBase64) => `You are a professional recipe digitizer. Extract the complete recipe from this cookbook page photo and return it as a JSON object ONLY — no markdown, no explanation, just raw JSON.
 
 The JSON must follow this exact structure:
@@ -27,24 +40,80 @@ The JSON must follow this exact structure:
 For thermomixAdapted: set to true if you adapt steps for Thermomix (e.g. combine chopping/mixing into TM steps).
 If a field is unknown, use null.`;
 
+const translateRecipePrompt = (recipe, targetLang) => {
+  const langName = targetLang === "de" ? "German" : "French";
+  return `Translate the following recipe fields to ${langName}. Return ONLY a JSON object — no markdown, no explanation, just raw JSON.
+
+Translate: title, description, ingredient names and notes, step instructions, notes, tags, and category.
+Do NOT translate: amounts, units, numbers, temperatures, or proper nouns like brand names.
+
+Input JSON:
+${JSON.stringify({
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: recipe.ingredients?.map((i) => ({ name: i.name, note: i.note ?? null })),
+    steps: recipe.steps?.map((s) => ({ instruction: s.instruction })),
+    notes: recipe.notes ?? null,
+    tags: recipe.tags ?? [],
+    category: recipe.category ?? null,
+  }, null, 2)}`;
+};
+
+const callAPI = async (messages, maxTokens = 2000) => {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: API_HEADERS,
+    body: JSON.stringify({ model: "claude-opus-4-5", max_tokens: maxTokens, messages }),
+  });
+  const data = await response.json();
+  const text = data.content?.find((b) => b.type === "text")?.text || "";
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+};
+
+const translateRecipe = (recipe, targetLang) =>
+  callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }]);
+
+const getRecipeInLang = (recipe, lang) => {
+  if (lang === "en" || !recipe.translations?.[lang]) return recipe;
+  const t = recipe.translations[lang];
+  return {
+    ...recipe,
+    title: t.title ?? recipe.title,
+    description: t.description ?? recipe.description,
+    ingredients: recipe.ingredients?.map((ing, i) => ({
+      ...ing,
+      name: t.ingredients?.[i]?.name ?? ing.name,
+      note: t.ingredients?.[i]?.note ?? ing.note,
+    })),
+    steps: recipe.steps?.map((step, i) => ({
+      ...step,
+      instruction: t.steps?.[i]?.instruction ?? step.instruction,
+    })),
+    notes: t.notes ?? recipe.notes,
+    tags: t.tags ?? recipe.tags,
+    category: t.category ?? recipe.category,
+  };
+};
+
 export default function RecipeApp() {
   const [recipes, setRecipes] = useState(SAMPLE_RECIPES);
   const [view, setView] = useState("library"); // library | digitize | detail
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [uploading, setUploading] = useState(false);
-  const [extracting, setExtacting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [extractedRecipe, setExtractedRecipe] = useState(null);
   const [error, setError] = useState(null);
   const [exportedRecipe, setExportedRecipe] = useState(null);
+  const [viewLang, setViewLang] = useState("en");
   const fileRef = useRef();
 
   const categories = ["All", ...new Set(recipes.map(r => r.category).filter(Boolean))];
 
   const filtered = recipes.filter(r => {
-    const matchesSearch = !search || 
+    const matchesSearch = !search ||
       r.title.toLowerCase().includes(search.toLowerCase()) ||
       r.tags?.some(t => t.toLowerCase().includes(search.toLowerCase())) ||
       r.ingredients?.some(i => i.name.toLowerCase().includes(search.toLowerCase()));
@@ -56,52 +125,47 @@ export default function RecipeApp() {
     if (!file) return;
     setError(null);
     setExtractedRecipe(null);
+    setViewLang("en");
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result.split(",")[1];
       const dataUrl = e.target.result;
       setPreviewImage(dataUrl);
-      setExtacting(true);
+      setExtracting(true);
 
       try {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-opus-4-5",
-            max_tokens: 2000,
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type: "image",
-                  source: { type: "base64", media_type: file.type, data: base64 }
-                },
-                { type: "text", text: extractRecipePrompt(base64) }
-              ]
-            }]
-          })
-        });
-
-        const data = await response.json();
-        const text = data.content?.find(b => b.type === "text")?.text || "";
-        
-        let parsed;
-        try {
-          parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-        } catch {
-          throw new Error("Could not parse recipe. Try a clearer photo.");
-        }
+        const parsed = await callAPI([{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
+            { type: "text", text: extractRecipePrompt(base64) },
+          ],
+        }]);
 
         parsed.id = Date.now();
         parsed.addedAt = new Date().toISOString();
         parsed.imageUrl = dataUrl;
+
+        setExtracting(false);
+        setTranslating(true);
+
+        try {
+          const [de, fr] = await Promise.all([
+            translateRecipe(parsed, "de"),
+            translateRecipe(parsed, "fr"),
+          ]);
+          parsed.translations = { de, fr };
+        } catch {
+          parsed.translations = {};
+        }
+
         setExtractedRecipe(parsed);
       } catch (err) {
         setError(err.message || "Extraction failed. Please try again.");
       } finally {
-        setExtacting(false);
+        setExtracting(false);
+        setTranslating(false);
       }
     };
     reader.readAsDataURL(file);
@@ -116,7 +180,6 @@ export default function RecipeApp() {
   };
 
   const exportCookidoo = (recipe) => {
-    // Cookidoo TM6-compatible JSON format
     const tm = {
       "@type": "Recipe",
       "name": recipe.title,
@@ -126,7 +189,7 @@ export default function RecipeApp() {
       "cookTime": recipe.cookTime ? `PT${recipe.cookTime}M` : null,
       "recipeCategory": recipe.category,
       "keywords": recipe.tags?.join(", "),
-      "recipeIngredient": recipe.ingredients?.map(i => 
+      "recipeIngredient": recipe.ingredients?.map(i =>
         `${i.amount || ""} ${i.unit || ""} ${i.name}${i.note ? ` (${i.note})` : ""}`.trim()
       ),
       "recipeInstructions": recipe.steps?.map((s, idx) => ({
@@ -134,12 +197,11 @@ export default function RecipeApp() {
         "position": s.step || idx + 1,
         "text": s.instruction,
         ...(s.duration ? { "timeRequired": `PT${s.duration}M` } : {}),
-        ...(s.temp ? { "temperature": `${s.temp}°C` } : {})
+        ...(s.temp ? { "temperature": `${s.temp}°C` } : {}),
       })),
       "source": recipe.source,
-      "notes": recipe.notes
+      "notes": recipe.notes,
     };
-
     const blob = new Blob([JSON.stringify(tm, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -155,12 +217,47 @@ export default function RecipeApp() {
     if (selectedRecipe?.id === id) { setSelectedRecipe(null); setView("library"); }
   };
 
+  const LangTabs = ({ hasTranslations }) => (
+    <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+      {LANGUAGES.map(l => {
+        const available = l.code === "en" || hasTranslations;
+        return (
+          <button
+            key={l.code}
+            onClick={() => available && setViewLang(l.code)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 4,
+              border: "1.5px solid",
+              borderColor: viewLang === l.code ? "#b5622a" : "#d4c5a9",
+              background: viewLang === l.code ? "#b5622a" : "transparent",
+              color: viewLang === l.code ? "#faf7f2" : available ? "#7a6040" : "#c8bba8",
+              cursor: available ? "pointer" : "not-allowed",
+              fontFamily: "'Crimson Text', serif",
+              fontSize: 14,
+              fontWeight: viewLang === l.code ? 600 : 400,
+              transition: "all 0.2s",
+            }}
+            title={!available ? "Translations not yet available" : undefined}
+          >
+            {l.flag} {l.label}
+          </button>
+        );
+      })}
+      {translating && (
+        <span style={{ alignSelf: "center", marginLeft: 8, fontSize: 13, color: "#9a8060", fontStyle: "italic" }}>
+          Translating…
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div style={{
       minHeight: "100vh",
       background: "#faf7f2",
       fontFamily: "'Crimson Text', Georgia, serif",
-      color: "#2c2416"
+      color: "#2c2416",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@700;900&display=swap');
@@ -199,7 +296,7 @@ export default function RecipeApp() {
           <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setView("library"); setPreviewImage(null); setExtractedRecipe(null); }}>
             📚 Library ({recipes.length})
           </button>
-          <button className="btn-primary" onClick={() => { setView("digitize"); setPreviewImage(null); setExtractedRecipe(null); setError(null); }}>
+          <button className="btn-primary" onClick={() => { setView("digitize"); setPreviewImage(null); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
             + Digitize Recipe
           </button>
         </div>
@@ -210,7 +307,6 @@ export default function RecipeApp() {
         {/* LIBRARY VIEW */}
         {view === "library" && (
           <div className="fade-in">
-            {/* Search & filter */}
             <div style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center" }}>
               <input className="input" placeholder="Search recipes, ingredients, tags…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -233,7 +329,7 @@ export default function RecipeApp() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
               {filtered.map(recipe => (
-                <div key={recipe.id} className="card" onClick={() => { setSelectedRecipe(recipe); setView("detail"); }} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, overflow: "hidden", cursor: "pointer" }}>
+                <div key={recipe.id} className="card" onClick={() => { setSelectedRecipe(recipe); setView("detail"); setViewLang("en"); }} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, overflow: "hidden", cursor: "pointer" }}>
                   {recipe.imageUrl && (
                     <div style={{ height: 160, overflow: "hidden", background: "#e8ddc8" }}>
                       <img src={recipe.imageUrl} alt={recipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -242,7 +338,12 @@ export default function RecipeApp() {
                   <div style={{ padding: "16px 18px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 19, lineHeight: 1.3 }}>{recipe.title}</h3>
-                      {recipe.thermomixAdapted && <span style={{ fontSize: 18 }} title="Thermomix adapted">🌀</span>}
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        {recipe.thermomixAdapted && <span style={{ fontSize: 18 }} title="Thermomix adapted">🌀</span>}
+                        {recipe.translations && Object.keys(recipe.translations).length > 0 && (
+                          <span style={{ fontSize: 12, color: "#9a8060" }} title="Available in multiple languages">🌐</span>
+                        )}
+                      </div>
                     </div>
                     <p style={{ fontSize: 14, color: "#7a6040", lineHeight: 1.5, marginBottom: 10 }}>{recipe.description?.substring(0, 80)}{recipe.description?.length > 80 ? "…" : ""}</p>
                     <div style={{ display: "flex", gap: 12, fontSize: 13, color: "#9a8060", marginBottom: 10 }}>
@@ -262,7 +363,7 @@ export default function RecipeApp() {
         {view === "digitize" && (
           <div className="fade-in" style={{ maxWidth: 720, margin: "0 auto" }}>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, marginBottom: 6 }}>Digitize a Recipe</h2>
-            <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph a cookbook page — Claude will extract the full recipe automatically.</p>
+            <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph a cookbook page — Claude will extract and translate the full recipe automatically.</p>
 
             {!previewImage && (
               <div
@@ -284,17 +385,19 @@ export default function RecipeApp() {
               <div style={{ display: "grid", gridTemplateColumns: extractedRecipe ? "1fr 1fr" : "1fr", gap: 24 }}>
                 <div>
                   <img src={previewImage} alt="Cookbook page" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8ddc8" }} />
-                  <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={() => { setPreviewImage(null); setExtractedRecipe(null); setError(null); fileRef.current?.click(); }}>
+                  <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={() => { setPreviewImage(null); setExtractedRecipe(null); setError(null); setViewLang("en"); fileRef.current?.click(); }}>
                     Try different photo
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleImageUpload(e.target.files[0])} />
                 </div>
 
                 <div>
-                  {extracting && (
+                  {(extracting || translating) && (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, color: "#9a8060" }}>
                       <div className="spinner" />
-                      <p style={{ fontSize: 16, fontStyle: "italic" }}>Reading your recipe…</p>
+                      <p style={{ fontSize: 16, fontStyle: "italic" }}>
+                        {extracting ? "Reading your recipe…" : "Translating to German & French…"}
+                      </p>
                     </div>
                   )}
 
@@ -305,35 +408,40 @@ export default function RecipeApp() {
                     </div>
                   )}
 
-                  {extractedRecipe && !extracting && (
+                  {extractedRecipe && !extracting && !translating && (
                     <div className="fade-in" style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, padding: 20 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>{extractedRecipe.title}</h3>
-                        {extractedRecipe.thermomixAdapted && <span style={{ fontSize: 20 }}>🌀</span>}
-                      </div>
-                      <p style={{ color: "#7a6040", fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>{extractedRecipe.description}</p>
-                      
-                      <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#9a8060", marginBottom: 12 }}>
-                        {extractedRecipe.servings && <span>👥 {extractedRecipe.servings} servings</span>}
-                        {extractedRecipe.prepTime && <span>⏱ {extractedRecipe.prepTime}min</span>}
-                        {extractedRecipe.cookTime && <span>🔥 {extractedRecipe.cookTime}min</span>}
-                      </div>
-
-                      <div style={{ marginBottom: 12 }}>
-                        <p style={{ fontWeight: 600, fontSize: 13, color: "#5a4020", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ingredients</p>
-                        <ul style={{ listStyle: "none", fontSize: 14 }}>
-                          {extractedRecipe.ingredients?.slice(0, 5).map((ing, i) => (
-                            <li key={i} style={{ padding: "3px 0", borderBottom: "1px solid #f0ebe0", color: "#4a3820" }}>
-                              <span style={{ fontWeight: 600 }}>{ing.amount} {ing.unit}</span> {ing.name}
-                            </li>
-                          ))}
-                          {extractedRecipe.ingredients?.length > 5 && <li style={{ color: "#9a8060", fontSize: 13, paddingTop: 4 }}>+{extractedRecipe.ingredients.length - 5} more…</li>}
-                        </ul>
-                      </div>
-
+                      <LangTabs hasTranslations={extractedRecipe.translations && Object.keys(extractedRecipe.translations).length > 0} />
+                      {(() => {
+                        const r = getRecipeInLang(extractedRecipe, viewLang);
+                        return (
+                          <>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>{r.title}</h3>
+                              {r.thermomixAdapted && <span style={{ fontSize: 20 }}>🌀</span>}
+                            </div>
+                            <p style={{ color: "#7a6040", fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>{r.description}</p>
+                            <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#9a8060", marginBottom: 12 }}>
+                              {r.servings && <span>👥 {r.servings} servings</span>}
+                              {r.prepTime && <span>⏱ {r.prepTime}min</span>}
+                              {r.cookTime && <span>🔥 {r.cookTime}min</span>}
+                            </div>
+                            <div style={{ marginBottom: 12 }}>
+                              <p style={{ fontWeight: 600, fontSize: 13, color: "#5a4020", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ingredients</p>
+                              <ul style={{ listStyle: "none", fontSize: 14 }}>
+                                {r.ingredients?.slice(0, 5).map((ing, i) => (
+                                  <li key={i} style={{ padding: "3px 0", borderBottom: "1px solid #f0ebe0", color: "#4a3820" }}>
+                                    <span style={{ fontWeight: 600 }}>{ing.amount} {ing.unit}</span> {ing.name}
+                                  </li>
+                                ))}
+                                {r.ingredients?.length > 5 && <li style={{ color: "#9a8060", fontSize: 13, paddingTop: 4 }}>+{r.ingredients.length - 5} more…</li>}
+                              </ul>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                         <button className="btn-primary" onClick={saveRecipe} style={{ flex: 1 }}>Save to Library</button>
-                        <button className="btn-ghost" onClick={() => exportCookidoo(extractedRecipe)} style={{ flex: 1 }}>Export for Cookidoo</button>
+                        <button className="btn-ghost" onClick={() => exportCookidoo(getRecipeInLang(extractedRecipe, viewLang))} style={{ flex: 1 }}>Export for Cookidoo</button>
                       </div>
                     </div>
                   )}
@@ -341,13 +449,12 @@ export default function RecipeApp() {
               </div>
             )}
 
-            {/* How it works */}
             {!previewImage && (
               <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                 {[
                   { icon: "📸", title: "Photograph", text: "Take a clear photo of any cookbook page" },
                   { icon: "🤖", title: "AI Extracts", text: "Claude reads and structures the full recipe" },
-                  { icon: "🌀", title: "Export", text: "Save to your library or export for Thermomix" },
+                  { icon: "🌐", title: "3 Languages", text: "Auto-translated into English, German & French" },
                 ].map(step => (
                   <div key={step.title} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, padding: 20, textAlign: "center" }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>{step.icon}</div>
@@ -361,83 +468,88 @@ export default function RecipeApp() {
         )}
 
         {/* DETAIL VIEW */}
-        {view === "detail" && selectedRecipe && (
-          <div className="fade-in" style={{ maxWidth: 800, margin: "0 auto" }}>
-            <button onClick={() => setView("library")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9a8060", fontSize: 15, marginBottom: 20, padding: 0 }}>
-              ← Back to library
-            </button>
+        {view === "detail" && selectedRecipe && (() => {
+          const r = getRecipeInLang(selectedRecipe, viewLang);
+          return (
+            <div className="fade-in" style={{ maxWidth: 800, margin: "0 auto" }}>
+              <button onClick={() => setView("library")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9a8060", fontSize: 15, marginBottom: 20, padding: 0 }}>
+                ← Back to library
+              </button>
 
-            <div style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 12, overflow: "hidden" }}>
-              {selectedRecipe.imageUrl && (
-                <div style={{ height: 240, overflow: "hidden" }}>
-                  <img src={selectedRecipe.imageUrl} alt={selectedRecipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-              )}
-              <div style={{ padding: "28px 32px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 34, lineHeight: 1.2 }}>{selectedRecipe.title}</h1>
-                  {selectedRecipe.thermomixAdapted && <span style={{ fontSize: 24 }} title="Thermomix adapted">🌀</span>}
-                </div>
-                {selectedRecipe.source && <p style={{ color: "#9a8060", fontSize: 14, marginBottom: 12, fontStyle: "italic" }}>From: {selectedRecipe.source}</p>}
-                <p style={{ fontSize: 17, color: "#5a4020", lineHeight: 1.6, marginBottom: 20 }}>{selectedRecipe.description}</p>
+              <LangTabs hasTranslations={selectedRecipe.translations && Object.keys(selectedRecipe.translations).length > 0} />
 
-                <div style={{ display: "flex", gap: 20, fontSize: 15, color: "#7a6040", padding: "16px 0", borderTop: "1px solid #f0ebe0", borderBottom: "1px solid #f0ebe0", marginBottom: 24 }}>
-                  {selectedRecipe.servings && <span>👥 {selectedRecipe.servings} servings</span>}
-                  {selectedRecipe.prepTime && <span>⏱ {selectedRecipe.prepTime}min prep</span>}
-                  {selectedRecipe.cookTime && <span>🔥 {selectedRecipe.cookTime}min cook</span>}
-                  {selectedRecipe.category && <span>🏷 {selectedRecipe.category}</span>}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32 }}>
-                  <div>
-                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Ingredients</h3>
-                    <ul style={{ listStyle: "none" }}>
-                      {selectedRecipe.ingredients?.map((ing, i) => (
-                        <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 8 }}>
-                          <span style={{ fontWeight: 600, minWidth: 80, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
-                          <span>{ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
-                        </li>
-                      ))}
-                    </ul>
+              <div style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 12, overflow: "hidden" }}>
+                {r.imageUrl && (
+                  <div style={{ height: 240, overflow: "hidden" }}>
+                    <img src={r.imageUrl} alt={r.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
-                  <div>
-                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Method</h3>
-                    <ol style={{ listStyle: "none" }}>
-                      {selectedRecipe.steps?.map((step, i) => (
-                        <li key={i} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                          <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
-                          <div>
-                            <p style={{ fontSize: 15, lineHeight: 1.6 }}>{step.instruction}</p>
-                            {(step.duration || step.temp) && (
-                              <p style={{ fontSize: 13, color: "#9a8060", marginTop: 4 }}>
-                                {step.duration && `⏱ ${step.duration}min`} {step.temp && `🌡 ${step.temp}°C`}
-                              </p>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                    {selectedRecipe.notes && (
-                      <div style={{ background: "#fdf9f0", border: "1px solid #e8ddc8", borderRadius: 6, padding: 14, marginTop: 16 }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: "#b5622a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Chef's Notes</p>
-                        <p style={{ fontSize: 14, color: "#5a4020", lineHeight: 1.6 }}>{selectedRecipe.notes}</p>
-                      </div>
-                    )}
+                )}
+                <div style={{ padding: "28px 32px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                    <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 34, lineHeight: 1.2 }}>{r.title}</h1>
+                    {r.thermomixAdapted && <span style={{ fontSize: 24 }} title="Thermomix adapted">🌀</span>}
                   </div>
-                </div>
+                  {r.source && <p style={{ color: "#9a8060", fontSize: 14, marginBottom: 12, fontStyle: "italic" }}>From: {r.source}</p>}
+                  <p style={{ fontSize: 17, color: "#5a4020", lineHeight: 1.6, marginBottom: 20 }}>{r.description}</p>
 
-                <div style={{ display: "flex", gap: 10, marginTop: 28, paddingTop: 20, borderTop: "1px solid #f0ebe0" }}>
-                  <button className="btn-primary" onClick={() => exportCookidoo(selectedRecipe)} style={{ flex: 1 }}>
-                    {exportedRecipe === selectedRecipe.id ? "✓ Downloaded!" : "🌀 Export for Cookidoo"}
-                  </button>
-                  <button className="btn-ghost" onClick={() => deleteRecipe(selectedRecipe.id)} style={{ color: "#c0503a", borderColor: "#c0503a55" }}>
-                    Delete
-                  </button>
+                  <div style={{ display: "flex", gap: 20, fontSize: 15, color: "#7a6040", padding: "16px 0", borderTop: "1px solid #f0ebe0", borderBottom: "1px solid #f0ebe0", marginBottom: 24 }}>
+                    {r.servings && <span>👥 {r.servings} servings</span>}
+                    {r.prepTime && <span>⏱ {r.prepTime}min prep</span>}
+                    {r.cookTime && <span>🔥 {r.cookTime}min cook</span>}
+                    {r.category && <span>🏷 {r.category}</span>}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32 }}>
+                    <div>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Ingredients</h3>
+                      <ul style={{ listStyle: "none" }}>
+                        {r.ingredients?.map((ing, i) => (
+                          <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 8 }}>
+                            <span style={{ fontWeight: 600, minWidth: 80, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
+                            <span>{ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Method</h3>
+                      <ol style={{ listStyle: "none" }}>
+                        {r.steps?.map((step, i) => (
+                          <li key={i} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                            <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
+                            <div>
+                              <p style={{ fontSize: 15, lineHeight: 1.6 }}>{step.instruction}</p>
+                              {(step.duration || step.temp) && (
+                                <p style={{ fontSize: 13, color: "#9a8060", marginTop: 4 }}>
+                                  {step.duration && `⏱ ${step.duration}min`} {step.temp && `🌡 ${step.temp}°C`}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                      {r.notes && (
+                        <div style={{ background: "#fdf9f0", border: "1px solid #e8ddc8", borderRadius: 6, padding: 14, marginTop: 16 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#b5622a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Chef's Notes</p>
+                          <p style={{ fontSize: 14, color: "#5a4020", lineHeight: 1.6 }}>{r.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 28, paddingTop: 20, borderTop: "1px solid #f0ebe0" }}>
+                    <button className="btn-primary" onClick={() => exportCookidoo(r)} style={{ flex: 1 }}>
+                      {exportedRecipe === selectedRecipe.id ? "✓ Downloaded!" : "🌀 Export for Cookidoo"}
+                    </button>
+                    <button className="btn-ghost" onClick={() => deleteRecipe(selectedRecipe.id)} style={{ color: "#c0503a", borderColor: "#c0503a55" }}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </main>
     </div>
   );
