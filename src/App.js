@@ -73,6 +73,24 @@ const callAPI = async (messages, maxTokens = 2000) => {
 const translateRecipe = (recipe, targetLang) =>
   callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }]);
 
+const generateRecipeImage = async (recipe) => {
+  const prompt = `Photorealistic food photography of ${recipe.title}. Studio McGee aesthetic: warm neutral palette, creamy whites and earthy tones, natural soft window light, marble surface or linen tablecloth, handmade ceramic dish, fresh herb garnish, shallow depth of field, editorial styling, 4k, cinematic.`;
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instances: [{ prompt }],
+        parameters: { sampleCount: 1, aspectRatio: "16:9" },
+      }),
+    }
+  );
+  const data = await response.json();
+  const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+  return b64 ? `data:image/png;base64,${b64}` : null;
+};
+
 const getRecipeInLang = (recipe, lang) => {
   if (lang === "en" || !recipe.translations?.[lang]) return recipe;
   const t = recipe.translations[lang];
@@ -103,6 +121,7 @@ export default function RecipeApp() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [extracting, setExtracting] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [extractedRecipe, setExtractedRecipe] = useState(null);
   const [error, setError] = useState(null);
@@ -160,12 +179,23 @@ export default function RecipeApp() {
           parsed.translations = {};
         }
 
+        setTranslating(false);
+        setGeneratingImage(true);
+
+        try {
+          const generatedImageUrl = await generateRecipeImage(parsed);
+          if (generatedImageUrl) parsed.generatedImageUrl = generatedImageUrl;
+        } catch {
+          // fall back to cookbook photo
+        }
+
         setExtractedRecipe(parsed);
       } catch (err) {
         setError(err.message || "Extraction failed. Please try again.");
       } finally {
         setExtracting(false);
         setTranslating(false);
+        setGeneratingImage(false);
       }
     };
     reader.readAsDataURL(file);
@@ -330,9 +360,9 @@ export default function RecipeApp() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
               {filtered.map(recipe => (
                 <div key={recipe.id} className="card" onClick={() => { setSelectedRecipe(recipe); setView("detail"); setViewLang("en"); }} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, overflow: "hidden", cursor: "pointer" }}>
-                  {recipe.imageUrl && (
+                  {(recipe.generatedImageUrl || recipe.imageUrl) && (
                     <div style={{ height: 160, overflow: "hidden", background: "#e8ddc8" }}>
-                      <img src={recipe.imageUrl} alt={recipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={recipe.generatedImageUrl || recipe.imageUrl} alt={recipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                   )}
                   <div style={{ padding: "16px 18px" }}>
@@ -392,11 +422,11 @@ export default function RecipeApp() {
                 </div>
 
                 <div>
-                  {(extracting || translating) && (
+                  {(extracting || translating || generatingImage) && (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, color: "#9a8060" }}>
                       <div className="spinner" />
                       <p style={{ fontSize: 16, fontStyle: "italic" }}>
-                        {extracting ? "Reading your recipe…" : "Translating to German & French…"}
+                        {extracting ? "Reading your recipe…" : translating ? "Translating to German & French…" : "Generating recipe image…"}
                       </p>
                     </div>
                   )}
@@ -408,7 +438,7 @@ export default function RecipeApp() {
                     </div>
                   )}
 
-                  {extractedRecipe && !extracting && !translating && (
+                  {extractedRecipe && !extracting && !translating && !generatingImage && (
                     <div className="fade-in" style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, padding: 20 }}>
                       <LangTabs hasTranslations={extractedRecipe.translations && Object.keys(extractedRecipe.translations).length > 0} />
                       {(() => {
@@ -479,9 +509,9 @@ export default function RecipeApp() {
               <LangTabs hasTranslations={selectedRecipe.translations && Object.keys(selectedRecipe.translations).length > 0} />
 
               <div style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 12, overflow: "hidden" }}>
-                {r.imageUrl && (
-                  <div style={{ height: 240, overflow: "hidden" }}>
-                    <img src={r.imageUrl} alt={r.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                {(selectedRecipe.generatedImageUrl || r.imageUrl) && (
+                  <div style={{ height: 300, overflow: "hidden" }}>
+                    <img src={selectedRecipe.generatedImageUrl || r.imageUrl} alt={r.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
                 )}
                 <div style={{ padding: "28px 32px" }}>
