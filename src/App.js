@@ -314,7 +314,7 @@ function EmptyStateHero({ onFiles }) {
           height: isMobile ? "100svh" : "130vh",
           width: "100vw",
           marginLeft: "calc(50% - 50vw)",
-          marginTop: isMobile ? "-16px" : "-32px",
+          marginTop: 0,
           position: "relative",
         }}
       >
@@ -422,6 +422,7 @@ function EmptyStateHero({ onFiles }) {
         marginLeft: "calc(50% - 50vw)",
         background: "#2D241E",
         padding: isMobile ? "48px 24px 72px" : "80px 24px 110px",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -1257,7 +1258,7 @@ export default function RecipeApp() {
       </header>
 
 
-      <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto", ...(view === "library" && recipes.length === 0 && { padding: 0 }) }}>
 
         {/* LIBRARY VIEW */}
         {view === "library" && (
