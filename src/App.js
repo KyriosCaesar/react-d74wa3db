@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 
@@ -268,15 +268,16 @@ function EmptyStateHero({ onFiles }) {
 
   const { scrollYProgress: sp } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
 
-  // Desktop scroll-linked transforms — one per book × 3 props (x, y, rotate)
-  const b0x = useTransform(sp, [0, 1], [  0, -480]); const b0y = useTransform(sp, [0, 1], [0,  40]); const b0r = useTransform(sp, [0, 1], [ -3, -24]);
-  const b1x = useTransform(sp, [0, 1], [  0, -330]); const b1y = useTransform(sp, [0, 1], [0,  15]); const b1r = useTransform(sp, [0, 1], [ -1, -15]);
-  const b2x = useTransform(sp, [0, 1], [  0, -175]); const b2y = useTransform(sp, [0, 1], [0, -15]); const b2r = useTransform(sp, [0, 1], [  1,  -7]);
-  const b3x = useTransform(sp, [0, 1], [  0,  -35]); const b3y = useTransform(sp, [0, 1], [0, -35]); const b3r = useTransform(sp, [0, 1], [ -1,  -2]);
-  const b4x = useTransform(sp, [0, 1], [  0,  100]); const b4y = useTransform(sp, [0, 1], [0, -35]); const b4r = useTransform(sp, [0, 1], [  1,   2]);
-  const b5x = useTransform(sp, [0, 1], [  0,  240]); const b5y = useTransform(sp, [0, 1], [0, -15]); const b5r = useTransform(sp, [0, 1], [ -1,   8]);
-  const b6x = useTransform(sp, [0, 1], [  0,  380]); const b6y = useTransform(sp, [0, 1], [0,  15]); const b6r = useTransform(sp, [0, 1], [  2,  16]);
-  const b7x = useTransform(sp, [0, 1], [  0,  520]); const b7y = useTransform(sp, [0, 1], [0,  40]); const b7r = useTransform(sp, [0, 1], [ -2,  25]);
+  // Pick 3 random books on mount
+  const selectedImages = useMemo(() => {
+    const shuffled = [...BOOK_IMAGES].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 3);
+  }, []);
+
+  // Desktop scroll-linked transforms — 3 books × 3 props (x, y, rotate)
+  const b0x = useTransform(sp, [0, 1], [  0, -310]); const b0y = useTransform(sp, [0, 1], [0,  30]); const b0r = useTransform(sp, [0, 1], [ -3, -22]);
+  const b1x = useTransform(sp, [0, 1], [  0,    0]); const b1y = useTransform(sp, [0, 1], [0, -20]); const b1r = useTransform(sp, [0, 1], [ -1,  -2]);
+  const b2x = useTransform(sp, [0, 1], [  0,  310]); const b2y = useTransform(sp, [0, 1], [0,  30]); const b2r = useTransform(sp, [0, 1], [  2,  22]);
 
   // Headline + scroll-hint + drop-zone envelope
   const dzOp = useTransform(sp, [0.3, 0.8], [0, 1]);
@@ -301,14 +302,9 @@ function EmptyStateHero({ onFiles }) {
 
   // Per-book config: desktop MotionValues, mobile scatter target, initial rotation, stacking z
   const bookDefs = [
-    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -200, y: 40,  r: -22 }, ir: -3,   z: 1 },
-    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x: -140, y: 10,  r: -14 }, ir: -1,   z: 2 },
-    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  -80, y: -15, r:  -7 }, ir:  1,   z: 4 },
-    { ds: { x: b3x, y: b3y, rotate: b3r }, mob: { x:  -25, y: -30, r:  -2 }, ir: -0.5, z: 8 },
-    { ds: { x: b4x, y: b4y, rotate: b4r }, mob: { x:   40, y: -30, r:   2 }, ir:  0.5, z: 8 },
-    { ds: { x: b5x, y: b5y, rotate: b5r }, mob: { x:   95, y: -15, r:   8 }, ir: -1,   z: 4 },
-    { ds: { x: b6x, y: b6y, rotate: b6r }, mob: { x:  155, y: 10,  r:  15 }, ir:  2,   z: 2 },
-    { ds: { x: b7x, y: b7y, rotate: b7r }, mob: { x:  210, y: 40,  r:  22 }, ir: -2,   z: 1 },
+    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -120, y: 25, r: -18 }, ir: -3,   z: 2 },
+    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x:    0, y: -25, r:  -1 }, ir: -0.5, z: 8 },
+    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  120, y: 25, r:  18 }, ir:  2,   z: 2 },
   ];
 
   return (
@@ -362,7 +358,7 @@ function EmptyStateHero({ onFiles }) {
           <div style={{
             position: "absolute", bottom: 0, left: "50%",
             transform: "translateX(-50%)",
-            width: 560, height: 48,
+            width: 420, height: 44,
             background: "radial-gradient(ellipse at center, rgba(44,36,22,0.22) 0%, transparent 72%)",
             pointerEvents: "none", zIndex: 0,
           }} />
@@ -386,7 +382,7 @@ function EmptyStateHero({ onFiles }) {
                 transition: { ...TR, delay: i * 0.05 },
               } : {})}
             >
-              <BookCover src={BOOK_IMAGES[i]} />
+              <BookCover src={selectedImages[i]} />
             </motion.div>
           ))}
         </div>
