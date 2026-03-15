@@ -261,6 +261,7 @@ function EmptyStateHero({ onFiles }) {
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   const [scattered, setScattered] = useState(false);
   const [isMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 640);
 
@@ -423,51 +424,98 @@ function EmptyStateHero({ onFiles }) {
       <div style={{
         width: "100vw",
         marginLeft: "calc(50% - 50vw)",
-        background: "#2D241E",
+        background: "linear-gradient(to bottom, #FDFBF1 0%, #2D241E 26%)",
         padding: isMobile ? "48px 24px 72px" : "80px 24px 110px",
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        position: "relative",
+        overflow: "hidden",
       }}>
-        <div style={{ maxWidth: 460, width: "100%", textAlign: "center" }}>
+
+        {/* Saffron focal-point orb — sits behind the card */}
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: 680,
+          height: 680,
+          borderRadius: "50%",
+          background: "rgba(244,197,66,0.20)",
+          filter: "blur(140px)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }} />
+
+        <div style={{ maxWidth: 460, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
           <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(244,197,66,0.7)", marginBottom: 32 }}>
             Digitize your cookbooks
           </p>
+
+          {/* ── Upload card ── */}
           <div
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
             onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             style={{
               background: isDragging ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              border: isDragging ? "1px solid rgba(244,197,66,0.45)" : "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 16,
-              padding: isMobile ? "36px 24px" : "52px 40px",
+              backdropFilter: "blur(48px)",
+              WebkitBackdropFilter: "blur(48px)",
+              border: isDragging
+                ? "1px solid rgba(244,197,66,0.55)"
+                : isHovering
+                  ? "1px solid rgba(255,255,255,0.32)"
+                  : "1px solid rgba(255,255,255,0.10)",
+              borderRadius: 24,
+              padding: isMobile ? "40px 28px 32px" : "56px 48px 40px",
               textAlign: "center",
               cursor: "pointer",
-              transition: "border-color 0.2s, background 0.2s",
+              transition: "border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s",
+              transform: isHovering && !isDragging ? "scale(1.05)" : "scale(1)",
+              boxShadow: isHovering && !isDragging
+                ? "0 24px 64px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.06)"
+                : "0 8px 32px rgba(0,0,0,0.18)",
             }}
           >
-            {/* Saffron line-art camera icon */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
-              <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19.5 11L16.5 15.5H9C7.6 15.5 6.5 16.6 6.5 18V38C6.5 39.4 7.6 40.5 9 40.5H43C44.4 40.5 45.5 39.4 45.5 38V18C45.5 16.6 44.4 15.5 43 15.5H35.5L32.5 11H19.5Z" stroke="#F4C542" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="26" cy="28.5" r="7.5" stroke="#F4C542" strokeWidth="1.4" />
-                <circle cx="38.5" cy="21.5" r="2" fill="#F4C542" />
+            {/* Minimalist thin-line camera icon */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+              <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.5 9.5L15 13.5H8C6.9 13.5 6 14.4 6 15.5V34C6 35.1 6.9 36 8 36H38C39.1 36 40 35.1 40 34V15.5C40 14.4 39.1 13.5 38 13.5H31L28.5 9.5H17.5Z"
+                  stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="23" cy="25" r="6.5" stroke="white" strokeWidth="1.2" />
+                <circle cx="33.5" cy="18" r="1.5" fill="white" fillOpacity="0.55" />
               </svg>
             </div>
-            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 500, color: "#FDFBF1", marginBottom: 10, lineHeight: 1.3 }}>
-              Photograph a cookbook page
+
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 18, fontWeight: 500, color: "#ffffff", marginBottom: 8, lineHeight: 1.3 }}>
+              Drop a recipe page here
             </p>
-            <p style={{ color: "rgba(253,251,241,0.5)", fontSize: 14, fontFamily: "'Inter', sans-serif", lineHeight: 1.6, marginBottom: 8 }}>
-              Drop here, or tap to choose an image
+            <p style={{ color: "rgba(255,255,255,0.60)", fontSize: 13, fontFamily: "'Inter', sans-serif", marginBottom: 32 }}>
+              or click to upload
             </p>
-            <p style={{ color: "rgba(253,251,241,0.3)", fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
-              JPG · PNG · HEIC — Claude will extract the full recipe
-            </p>
+
+            {/* File-type badges */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+              {["JPG", "PNG", "HEIC"].map(ext => (
+                <span key={ext} style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  color: "rgba(255,255,255,0.35)",
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: 6,
+                  padding: "3px 9px",
+                }}>{ext}</span>
+              ))}
+            </div>
+
             <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => onFiles(e.target.files)} />
           </div>
         </div>
