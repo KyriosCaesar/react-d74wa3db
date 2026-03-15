@@ -333,7 +333,11 @@ export default function RecipeApp() {
         if (frResult.status === "fulfilled") parsed.translations.fr = frResult.value;
         if (imageResult.status === "fulfilled" && imageResult.value) parsed.generatedImageUrl = imageResult.value;
 
-        setExtractedRecipe(parsed);
+        setRecipes(prev => [parsed, ...prev]);
+        setSelectedRecipe(parsed);
+        setPreviewImage(null);
+        setExtractedRecipe(null);
+        setView("detail");
       } catch (err) {
         setError(err.message || "Extraction failed. Please try again.");
       } finally {
@@ -344,14 +348,6 @@ export default function RecipeApp() {
     };
     reader.readAsDataURL(file);
   }, []);
-
-  const saveRecipe = () => {
-    if (!extractedRecipe) return;
-    setRecipes(prev => [extractedRecipe, ...prev]);
-    setPreviewImage(null);
-    setExtractedRecipe(null);
-    setView("library");
-  };
 
   const exportCookidoo = (recipe) => {
     const tm = {
@@ -556,70 +552,31 @@ export default function RecipeApp() {
             )}
 
             {previewImage && (
-              <div style={{ display: "grid", gridTemplateColumns: extractedRecipe ? "1fr 1fr" : "1fr", gap: 24 }}>
-                <div>
-                  <img src={previewImage} alt="Cookbook page" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8ddc8" }} />
+              <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleImageUpload(e.target.files[0])} />
+                <img src={previewImage} alt="Cookbook page" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8ddc8" }} />
+
+                {(extracting || translating || generatingImage) && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 24, gap: 12, color: "#9a8060" }}>
+                    <div className="spinner" />
+                    <p style={{ fontSize: 16, fontStyle: "italic" }}>
+                      {extracting ? "Reading your recipe…" : "Translating & generating image…"}
+                    </p>
+                  </div>
+                )}
+
+                {error && (
+                  <div style={{ background: "#fdf0e8", border: "1px solid #e8c4a0", borderRadius: 8, padding: 20, marginTop: 16 }}>
+                    <p style={{ color: "#8f4a1e", fontWeight: 600, marginBottom: 8 }}>Extraction failed</p>
+                    <p style={{ color: "#7a4030", fontSize: 15 }}>{error}</p>
+                  </div>
+                )}
+
+                {!extracting && !translating && !generatingImage && (
                   <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={() => { setPreviewImage(null); setExtractedRecipe(null); setError(null); setViewLang("en"); fileRef.current?.click(); }}>
                     Try different photo
                   </button>
-                  <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleImageUpload(e.target.files[0])} />
-                </div>
-
-                <div>
-                  {(extracting || translating || generatingImage) && (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, color: "#9a8060" }}>
-                      <div className="spinner" />
-                      <p style={{ fontSize: 16, fontStyle: "italic" }}>
-                        {extracting ? "Reading your recipe…" : "Translating & generating image…"}
-                      </p>
-                    </div>
-                  )}
-
-                  {error && (
-                    <div style={{ background: "#fdf0e8", border: "1px solid #e8c4a0", borderRadius: 8, padding: 20 }}>
-                      <p style={{ color: "#8f4a1e", fontWeight: 600, marginBottom: 8 }}>Extraction failed</p>
-                      <p style={{ color: "#7a4030", fontSize: 15 }}>{error}</p>
-                    </div>
-                  )}
-
-                  {extractedRecipe && !extracting && !translating && !generatingImage && (
-                    <div className="fade-in" style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, padding: 20 }}>
-                      <LangTabs hasTranslations={extractedRecipe.translations && Object.keys(extractedRecipe.translations).length > 0} />
-                      {(() => {
-                        const r = getRecipeInLang(extractedRecipe, viewLang);
-                        return (
-                          <>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>{r.title}</h3>
-                              {r.thermomixAdapted && <span style={{ fontSize: 20 }}>🌀</span>}
-                            </div>
-                            <p style={{ color: "#7a6040", fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>{r.description}</p>
-                            <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#9a8060", marginBottom: 12 }}>
-                              {r.servings && <span>👥 {r.servings} servings</span>}
-                              {r.prepTime && <span>⏱ {r.prepTime}min</span>}
-                              {r.cookTime && <span>🔥 {r.cookTime}min</span>}
-                            </div>
-                            <div style={{ marginBottom: 12 }}>
-                              <p style={{ fontWeight: 600, fontSize: 13, color: "#5a4020", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ingredients</p>
-                              <ul style={{ listStyle: "none", fontSize: 14 }}>
-                                {r.ingredients?.slice(0, 5).map((ing, i) => (
-                                  <li key={i} style={{ padding: "3px 0", borderBottom: "1px solid #f0ebe0", color: "#4a3820" }}>
-                                    <span style={{ fontWeight: 600 }}>{ing.amount} {ing.unit}</span> {ing.name}
-                                  </li>
-                                ))}
-                                {r.ingredients?.length > 5 && <li style={{ color: "#9a8060", fontSize: 13, paddingTop: 4 }}>+{r.ingredients.length - 5} more…</li>}
-                              </ul>
-                            </div>
-                          </>
-                        );
-                      })()}
-                      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                        <button className="btn-primary" onClick={saveRecipe} style={{ flex: 1 }}>Save to Library</button>
-                        <button className="btn-ghost" onClick={() => exportCookidoo(getRecipeInLang(extractedRecipe, viewLang))} style={{ flex: 1 }}>Export for Cookidoo</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             )}
 
