@@ -251,7 +251,7 @@ function BookCover({ src }) {
         height: 220,
         width: "auto",
         display: "block",
-        filter: "drop-shadow(0px 30px 60px rgba(0,0,0,0.28)) drop-shadow(0px 8px 20px rgba(0,0,0,0.14))",
+        filter: "drop-shadow(0px 40px 80px rgba(0,0,0,0.18)) drop-shadow(0px 12px 32px rgba(0,0,0,0.09))",
       }}
     />
   );
@@ -322,38 +322,13 @@ function EmptyStateHero({ onFiles }) {
           position: isMobile ? "relative" : "sticky",
           top: 0,
           height: isMobile ? "100svh" : "100vh",
-          background: "#FDFBF1",
+          background: "transparent",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
         }}>
-
-          {/* ── Mesh gradient blob orbs ── */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-            {/* Sage blob — top-left */}
-            <div style={{
-              position: "absolute", top: "5%", left: "10%", width: 640, height: 640,
-              background: "radial-gradient(circle, rgba(226,232,213,0.75) 0%, transparent 70%)",
-              filter: "blur(90px)", borderRadius: "50%",
-              animation: "blobDrift1 14s ease-in-out infinite",
-            }} />
-            {/* Sage blob — right */}
-            <div style={{
-              position: "absolute", top: "35%", right: "5%", width: 520, height: 520,
-              background: "radial-gradient(circle, rgba(226,232,213,0.55) 0%, transparent 70%)",
-              filter: "blur(80px)", borderRadius: "50%",
-              animation: "blobDrift2 18s ease-in-out infinite",
-            }} />
-            {/* Saffron accent blob — bottom-center */}
-            <div style={{
-              position: "absolute", bottom: "10%", left: "25%", width: 440, height: 440,
-              background: "radial-gradient(circle, rgba(244,197,66,0.22) 0%, transparent 70%)",
-              filter: "blur(80px)", borderRadius: "50%",
-              animation: "blobDrift3 22s ease-in-out infinite",
-            }} />
-          </div>
 
           {/* ── Headline ── */}
           <motion.div
@@ -1155,13 +1130,14 @@ export default function RecipeApp() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#faf7f2",
+      background: "transparent",
       fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       color: "#2c2416",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;700;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #FDFBF1; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f0ebe0; }
         ::-webkit-scrollbar-thumb { background: #c8a97e; border-radius: 3px; }
@@ -1187,9 +1163,9 @@ export default function RecipeApp() {
         @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
         @keyframes float { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 1; } 80% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-120px) scale(1.1); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-        @keyframes blobDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(40px,-30px) scale(1.05); } 66% { transform: translate(-20px,20px) scale(0.97); } }
-        @keyframes blobDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-50px,30px) scale(1.08); } 66% { transform: translate(30px,-20px) scale(0.95); } }
-        @keyframes blobDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(25px,40px) scale(1.03); } 66% { transform: translate(-35px,-25px) scale(1.06); } }
+        @keyframes blobDrift1 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.80; } 33% { transform: translate(40px,-30px) scale(1.05); opacity: 0.95; } 66% { transform: translate(-20px,20px) scale(0.97); opacity: 0.62; } }
+        @keyframes blobDrift2 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.68; } 33% { transform: translate(-50px,30px) scale(1.08); opacity: 0.88; } 66% { transform: translate(30px,-20px) scale(0.95); opacity: 0.52; } }
+        @keyframes blobDrift3 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.58; } 33% { transform: translate(25px,40px) scale(1.03); opacity: 0.78; } 66% { transform: translate(-35px,-25px) scale(1.06); opacity: 0.45; } }
         @keyframes bookFloat { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
         @keyframes scrollBounce { 0%,100% { transform: translateY(0); opacity: 0.7; } 50% { transform: translateY(6px); opacity: 1; } }
 
@@ -1241,8 +1217,20 @@ export default function RecipeApp() {
         }
       `}</style>
 
+      {/* ── Global mesh gradient background — fixed, starts 10vh down so header stays clean ── */}
+      <div style={{ position: "fixed", top: "10vh", left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+        {/* Sage blob — upper left */}
+        <div style={{ position: "absolute", top: "-8%", left: "4%", width: 720, height: 720, background: "radial-gradient(circle, rgba(226,232,213,0.72) 0%, transparent 68%)", filter: "blur(120px)", borderRadius: "50%", animation: "blobDrift1 14s ease-in-out infinite", willChange: "transform" }} />
+        {/* Sage blob — right */}
+        <div style={{ position: "absolute", top: "26%", right: "2%", width: 600, height: 600, background: "radial-gradient(circle, rgba(226,232,213,0.58) 0%, transparent 68%)", filter: "blur(100px)", borderRadius: "50%", animation: "blobDrift2 18s ease-in-out infinite", willChange: "transform" }} />
+        {/* Saffron accent blob — bottom center */}
+        <div style={{ position: "absolute", bottom: "6%", left: "20%", width: 520, height: 520, background: "radial-gradient(circle, rgba(244,197,66,0.24) 0%, transparent 68%)", filter: "blur(110px)", borderRadius: "50%", animation: "blobDrift3 22s ease-in-out infinite", willChange: "transform" }} />
+        {/* Sage blob — mid (4th orb for depth) */}
+        <div style={{ position: "absolute", top: "54%", left: "38%", width: 440, height: 440, background: "radial-gradient(circle, rgba(226,232,213,0.42) 0%, transparent 68%)", filter: "blur(100px)", borderRadius: "50%", animation: "blobDrift1 28s ease-in-out 6s infinite", willChange: "transform" }} />
+      </div>
+
       {/* ── Top bar ── */}
-      <header className="site-header" style={{ background: "rgba(253,251,241,0.72)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: "1px solid rgba(232,221,200,0.45)", boxShadow: "0 1px 24px rgba(44,36,22,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+      <header className="site-header" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         {/* Hamburger */}
         <button style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}>
           <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
@@ -1268,7 +1256,7 @@ export default function RecipeApp() {
       </header>
 
       {/* ── Secondary nav: Library / Digitize ── */}
-      <div className="header-buttons" style={{ background: "rgba(253,251,241,0.72)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: "1px solid rgba(232,221,200,0.45)" }}>
+      <div className="header-buttons" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
         <button
           className={`nav-tab${view === "library" ? " active" : ""}`}
           onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}
