@@ -251,7 +251,7 @@ function BookCover({ src }) {
         height: 220,
         width: "auto",
         display: "block",
-        filter: "drop-shadow(4px 10px 26px rgba(0,0,0,0.48)) drop-shadow(-2px 0 6px rgba(0,0,0,0.22))",
+        filter: "drop-shadow(0px 30px 60px rgba(0,0,0,0.28)) drop-shadow(0px 8px 20px rgba(0,0,0,0.14))",
       }}
     />
   );
@@ -273,16 +273,15 @@ function EmptyStateHero({ onFiles }) {
   }, []);
 
   // Desktop scroll-linked transforms — 3 books × 3 props (x, y, rotate)
-  // ∩ shape: center rises, sides drop — opening faces down
+  // ∩ shape: center rises, sides drop
   const b0x = useTransform(sp, [0, 1], [  0, -290]); const b0y = useTransform(sp, [0, 1], [0,  90]); const b0r = useTransform(sp, [0, 1], [ -3, -20]);
   const b1x = useTransform(sp, [0, 1], [  0,    0]); const b1y = useTransform(sp, [0, 1], [0, -70]); const b1r = useTransform(sp, [0, 1], [ -1,  -2]);
   const b2x = useTransform(sp, [0, 1], [  0,  290]); const b2y = useTransform(sp, [0, 1], [0,  90]); const b2r = useTransform(sp, [0, 1], [  2,  20]);
 
-  // Headline + scroll-hint + drop-zone envelope
-  const dzOp = useTransform(sp, [0.3, 0.8], [0, 1]);
-  const dzY  = useTransform(sp, [0.3, 0.8], [60, 0]);
+  // Headline fades and lifts as user scrolls
   const hlOp = useTransform(sp, [0, 0.5], [1, 0.65]);
   const hlY  = useTransform(sp, [0, 0.5], [0, -18]);
+  // Scroll indicator fades out as soon as user starts scrolling
   const scOp = useTransform(sp, [0, 0.2], [1, 0]);
 
   useEffect(() => {
@@ -299,143 +298,201 @@ function EmptyStateHero({ onFiles }) {
 
   const TR = { duration: 0.9, ease: [0.22, 0.68, 0, 1.2] };
 
-  // Per-book config: desktop MotionValues, mobile scatter target, initial rotation, stacking z
+  // Per-book config: desktop MotionValues, mobile scatter target, initial rotation, stacking z, float timing
   const bookDefs = [
-    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -120, y:  70, r: -18 }, ir: -3,   z: 2 },
-    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x:    0, y: -70, r:  -1 }, ir: -0.5, z: 8 },
-    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  120, y:  70, r:  18 }, ir:  2,   z: 2 },
+    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -120, y:  70, r: -18 }, ir: -3,   z: 2, floatDur: 3.8, floatDelay: 0 },
+    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x:    0, y: -70, r:  -1 }, ir: -0.5, z: 8, floatDur: 4.4, floatDelay: 0.7 },
+    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  120, y:  70, r:  18 }, ir:  2,   z: 2, floatDur: 3.2, floatDelay: 1.4 },
   ];
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        height: isMobile ? "100svh" : "200vh",
+    <>
+      {/* ── Scroll container (200vh desktop / 100svh mobile) with sticky hero ── */}
+      <div
+        ref={containerRef}
+        style={{
+          height: isMobile ? "100svh" : "200vh",
+          width: "100vw",
+          marginLeft: "calc(50% - 50vw)",
+          marginTop: isMobile ? "-16px" : "-32px",
+          position: "relative",
+        }}
+      >
+        <div style={{
+          position: isMobile ? "relative" : "sticky",
+          top: 0,
+          height: isMobile ? "100svh" : "100vh",
+          background: "#FDFBF1",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}>
+
+          {/* ── Mesh gradient blob orbs ── */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+            {/* Sage blob — top-left */}
+            <div style={{
+              position: "absolute", top: "5%", left: "10%", width: 640, height: 640,
+              background: "radial-gradient(circle, rgba(226,232,213,0.75) 0%, transparent 70%)",
+              filter: "blur(90px)", borderRadius: "50%",
+              animation: "blobDrift1 14s ease-in-out infinite",
+            }} />
+            {/* Sage blob — right */}
+            <div style={{
+              position: "absolute", top: "35%", right: "5%", width: 520, height: 520,
+              background: "radial-gradient(circle, rgba(226,232,213,0.55) 0%, transparent 70%)",
+              filter: "blur(80px)", borderRadius: "50%",
+              animation: "blobDrift2 18s ease-in-out infinite",
+            }} />
+            {/* Saffron accent blob — bottom-center */}
+            <div style={{
+              position: "absolute", bottom: "10%", left: "25%", width: 440, height: 440,
+              background: "radial-gradient(circle, rgba(244,197,66,0.22) 0%, transparent 70%)",
+              filter: "blur(80px)", borderRadius: "50%",
+              animation: "blobDrift3 22s ease-in-out infinite",
+            }} />
+          </div>
+
+          {/* ── Headline ── */}
+          <motion.div
+            style={isMobile
+              ? { textAlign: "center", padding: "0 24px", marginBottom: 48, position: "relative", zIndex: 2 }
+              : { opacity: hlOp, y: hlY, textAlign: "center", padding: "0 24px", marginBottom: 64, position: "relative", zIndex: 2 }}
+            {...(isMobile ? {
+              animate: { opacity: scattered ? 0.7 : 1, y: scattered ? -16 : 0 },
+              transition: TR,
+            } : {})}
+          >
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 500, letterSpacing: "-0.025em", color: "#2c2416", lineHeight: 1.15, maxWidth: 540, margin: "0 auto" }}>
+              What will you cook<br />from your shelf today?
+            </h2>
+            {isMobile && !scattered && (
+              <p style={{ color: "#b8a888", fontSize: 14, marginTop: 14, fontStyle: "italic" }}>Opening your cookbooks…</p>
+            )}
+          </motion.div>
+
+          {/* ── Books scene — stacked at center, then fly apart on scroll ── */}
+          <div style={{ position: "relative", width: "100%", height: 300, zIndex: 2 }}>
+            {/* Ground shadow beneath all books */}
+            <div style={{
+              position: "absolute", bottom: 0, left: "50%",
+              transform: "translateX(-50%)",
+              width: 420, height: 44,
+              background: "radial-gradient(ellipse at center, rgba(44,36,22,0.18) 0%, transparent 72%)",
+              pointerEvents: "none", zIndex: 0,
+            }} />
+            {bookDefs.map((bd, i) => (
+              <motion.div
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  zIndex: bd.z,
+                  ...(isMobile ? {} : bd.ds),
+                }}
+                {...(isMobile ? {
+                  initial: { x: 0, y: 0, rotate: bd.ir },
+                  animate: scattered
+                    ? { x: bd.mob.x, y: bd.mob.y, rotate: bd.mob.r }
+                    : { x: 0, y: 0, rotate: bd.ir },
+                  transition: { ...TR, delay: i * 0.05 },
+                } : {})}
+              >
+                <div style={{ transform: "translate(-50%, -50%)" }}>
+                  {/* Float animation wrapper — independent of Framer transforms */}
+                  <div style={{ animation: `bookFloat ${bd.floatDur}s ease-in-out ${bd.floatDelay}s infinite` }}>
+                    <BookCover src={selectedImages[i]} />
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* ── Scroll to explore indicator ── */}
+          {!isMobile && (
+            <motion.div
+              style={{
+                position: "absolute", bottom: 56, left: "50%", transform: "translateX(-50%)",
+                opacity: scOp, zIndex: 5,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              }}
+            >
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "#9a8060" }}>
+                Scroll to explore
+              </span>
+              <div style={{ animation: "scrollBounce 1.6s ease-in-out infinite" }}>
+                <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
+                  <path d="M1 1.5L8 8.5L15 1.5" stroke="#b8a888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Bottom fade — hero blends into espresso section ── */}
+          <div style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 220,
+            background: "linear-gradient(to bottom, transparent 0%, #2D241E 100%)",
+            pointerEvents: "none", zIndex: 10,
+          }} />
+        </div>
+      </div>
+
+      {/* ── Espresso dark section — upload card ── */}
+      <div style={{
         width: "100vw",
         marginLeft: "calc(50% - 50vw)",
-        marginTop: isMobile ? "-16px" : "-32px",
-        position: "relative",
-      }}
-    >
-      <div style={{
-        position: isMobile ? "relative" : "sticky",
-        top: 0,
-        height: isMobile ? "100svh" : "100vh",
-        background: "linear-gradient(165deg, #fdf8f0 0%, #f3e8d5 55%, #e8d5bc 100%)",
+        background: "#2D241E",
+        padding: isMobile ? "48px 24px 72px" : "80px 24px 110px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
       }}>
-        {/* Headline */}
-        <motion.div
-          style={isMobile
-            ? { textAlign: "center", padding: "0 24px", marginBottom: 48 }
-            : { opacity: hlOp, y: hlY, textAlign: "center", padding: "0 24px", marginBottom: 64 }}
-          {...(isMobile ? {
-            animate: { opacity: scattered ? 0.7 : 1, y: scattered ? -16 : 0 },
-            transition: TR,
-          } : {})}
-        >
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 500, letterSpacing: "-0.025em", color: "#2c2416", lineHeight: 1.15, maxWidth: 540, margin: "0 auto" }}>
-            What will you cook<br />from your shelf today?
-          </h2>
-          {!isMobile && (
-            <motion.p style={{ color: "#9a8060", fontSize: 15, marginTop: 18, fontStyle: "italic", opacity: scOp }}>
-              Scroll to open your cookbooks ↓
-            </motion.p>
-          )}
-          {isMobile && !scattered && (
-            <p style={{ color: "#b8a888", fontSize: 14, marginTop: 14, fontStyle: "italic" }}>Opening your cookbooks…</p>
-          )}
-        </motion.div>
-
-        {/* Books scene — all 8 stacked at center, then fly apart */}
-        <div style={{ position: "relative", width: "100%", height: 300 }}>
-          {/* Ground shadow beneath all books */}
-          <div style={{
-            position: "absolute", bottom: 0, left: "50%",
-            transform: "translateX(-50%)",
-            width: 420, height: 44,
-            background: "radial-gradient(ellipse at center, rgba(44,36,22,0.22) 0%, transparent 72%)",
-            pointerEvents: "none", zIndex: 0,
-          }} />
-          {bookDefs.map((bd, i) => (
-            <motion.div
-              key={i}
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: "50%",
-                zIndex: bd.z,
-                ...(isMobile ? {} : bd.ds),
-              }}
-              {...(isMobile ? {
-                initial: { x: 0, y: 0, rotate: bd.ir },
-                animate: scattered
-                  ? { x: bd.mob.x, y: bd.mob.y, rotate: bd.mob.r }
-                  : { x: 0, y: 0, rotate: bd.ir },
-                transition: { ...TR, delay: i * 0.05 },
-              } : {})}
-            >
-              <div style={{ transform: "translate(-50%, -50%)" }}>
-                <BookCover src={selectedImages[i]} />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Drop zone (glassmorphism) */}
-        <motion.div
-          style={{
-            zIndex: 10,
-            width: "100%",
-            maxWidth: 460,
-            padding: "0 24px",
-            marginTop: 28,
-            ...(isMobile ? {} : { opacity: dzOp, y: dzY }),
-          }}
-          {...(isMobile ? {
-            initial: { opacity: 0, y: 40 },
-            animate: scattered ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 },
-            transition: { ...TR, delay: 0.22 },
-          } : {})}
-        >
+        <div style={{ maxWidth: 460, width: "100%", textAlign: "center" }}>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(244,197,66,0.7)", marginBottom: 32 }}>
+            Digitize your cookbooks
+          </p>
           <div
             onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             style={{
-              background: "rgba(253,249,243,0.78)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              border: isDragging ? "2px dashed #b5622a" : "2px dashed rgba(181,98,42,0.50)",
-              borderRadius: 12,
-              padding: "28px 24px",
+              background: isDragging ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              border: isDragging ? "1px solid rgba(244,197,66,0.45)" : "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 16,
+              padding: isMobile ? "36px 24px" : "52px 40px",
               textAlign: "center",
               cursor: "pointer",
               transition: "border-color 0.2s, background 0.2s",
-              boxShadow: "0 8px 40px rgba(44,36,22,0.12), 0 2px 8px rgba(44,36,22,0.06)",
             }}
           >
-            <div style={{ fontSize: 38, marginBottom: 10 }}>📸</div>
-            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#2c2416", marginBottom: 6 }}>Photograph a cookbook page</p>
-            <p style={{ color: "#9a8060", fontSize: 14 }}>Drop here, or tap to choose an image</p>
-            <p style={{ color: "#b8a888", fontSize: 12, marginTop: 8 }}>JPG · PNG · HEIC — Claude will extract the full recipe</p>
+            {/* Saffron line-art camera icon */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
+              <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19.5 11L16.5 15.5H9C7.6 15.5 6.5 16.6 6.5 18V38C6.5 39.4 7.6 40.5 9 40.5H43C44.4 40.5 45.5 39.4 45.5 38V18C45.5 16.6 44.4 15.5 43 15.5H35.5L32.5 11H19.5Z" stroke="#F4C542" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="26" cy="28.5" r="7.5" stroke="#F4C542" strokeWidth="1.4" />
+                <circle cx="38.5" cy="21.5" r="2" fill="#F4C542" />
+              </svg>
+            </div>
+            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 500, color: "#FDFBF1", marginBottom: 10, lineHeight: 1.3 }}>
+              Photograph a cookbook page
+            </p>
+            <p style={{ color: "rgba(253,251,241,0.5)", fontSize: 14, fontFamily: "'Inter', sans-serif", lineHeight: 1.6, marginBottom: 8 }}>
+              Drop here, or tap to choose an image
+            </p>
+            <p style={{ color: "rgba(253,251,241,0.3)", fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
+              JPG · PNG · HEIC — Claude will extract the full recipe
+            </p>
             <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => onFiles(e.target.files)} />
           </div>
-        </motion.div>
-
-        {/* Bottom fade — dissolves hero into site background (#faf7f2) */}
-        <div style={{
-          position: "absolute", bottom: 0, left: 0, right: 0, height: 200,
-          background: "linear-gradient(to bottom, transparent 0%, #faf7f2 100%)",
-          pointerEvents: "none", zIndex: 20,
-        }} />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1130,6 +1187,11 @@ export default function RecipeApp() {
         @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
         @keyframes float { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 1; } 80% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-120px) scale(1.1); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes blobDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(40px,-30px) scale(1.05); } 66% { transform: translate(-20px,20px) scale(0.97); } }
+        @keyframes blobDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-50px,30px) scale(1.08); } 66% { transform: translate(30px,-20px) scale(0.95); } }
+        @keyframes blobDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(25px,40px) scale(1.03); } 66% { transform: translate(-35px,-25px) scale(1.06); } }
+        @keyframes bookFloat { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+        @keyframes scrollBounce { 0%,100% { transform: translateY(0); opacity: 0.7; } 50% { transform: translateY(6px); opacity: 1; } }
 
         /* ── Base layout classes (desktop defaults) ── */
         .site-header { padding: 12px 24px; gap: 10px; position: relative; }
@@ -1180,7 +1242,7 @@ export default function RecipeApp() {
       `}</style>
 
       {/* ── Top bar ── */}
-      <header className="site-header" style={{ background: "#faf7f2", borderBottom: "1px solid #e8ddc8", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+      <header className="site-header" style={{ background: "rgba(253,251,241,0.72)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: "1px solid rgba(232,221,200,0.45)", boxShadow: "0 1px 24px rgba(44,36,22,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         {/* Hamburger */}
         <button style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}>
           <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
@@ -1206,7 +1268,7 @@ export default function RecipeApp() {
       </header>
 
       {/* ── Secondary nav: Library / Digitize ── */}
-      <div className="header-buttons" style={{ background: "#faf7f2", borderBottom: "1px solid #e8ddc8" }}>
+      <div className="header-buttons" style={{ background: "rgba(253,251,241,0.72)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: "1px solid rgba(232,221,200,0.45)" }}>
         <button
           className={`nav-tab${view === "library" ? " active" : ""}`}
           onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}
@@ -1215,7 +1277,7 @@ export default function RecipeApp() {
         </button>
         <button
           className="btn-primary"
-          style={{ fontSize: 11, padding: "7px 20px", fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}
+          style={{ fontSize: 11, padding: "7px 20px", fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, background: "#D9835C", boxShadow: "0 0 18px rgba(217,131,92,0.38)" }}
           onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}
         >
           + Digitize
