@@ -1231,7 +1231,7 @@ export default function RecipeApp() {
       </div>
 
       {/* ── Top bar ── */}
-      <header className="site-header" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+      <header className="site-header" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         {/* Hamburger */}
         <button style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}>
           <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
