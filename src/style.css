@@ -4,6 +4,15 @@ p {
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
+/* ── Continuous atmosphere gradient — cream → espresso over 200vh ── */
+body {
+  background-color: #2D241E;
+  background-image: linear-gradient(to bottom, #FDFBF1 0%, #2D241E 100%);
+  background-size: 100% 200vh;
+  background-repeat: no-repeat;
+  background-position: top center;
+}
+
 /* ── Hide scrollbars + prevent horizontal overflow from 100vw breakouts ── */
 html, body {
   overflow-x: hidden;

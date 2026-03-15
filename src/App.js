@@ -321,6 +321,16 @@ function EmptyStateHero({ onFiles }) {
           position: "relative",
         }}
       >
+        {/* Saffron atmosphere orb — floats behind books */}
+        <div style={{
+          position: "absolute", top: "10%", left: "50%",
+          transform: "translateX(-50%)",
+          width: 700, height: 700, borderRadius: "50%",
+          background: "rgba(244,197,66,0.13)",
+          filter: "blur(150px)",
+          pointerEvents: "none", zIndex: 0,
+        }} />
+
         <div style={{
           position: isMobile ? "relative" : "sticky",
           top: 0,
@@ -331,7 +341,7 @@ function EmptyStateHero({ onFiles }) {
           alignItems: "center",
           justifyContent: isMobile ? "center" : "flex-start",
           paddingTop: isMobile ? 0 : "10vh",
-          overflow: "hidden",
+          overflow: "visible",
         }}>
 
           {/* ── Headline ── */}
@@ -420,39 +430,66 @@ function EmptyStateHero({ onFiles }) {
         </div>
       </div>
 
-      {/* ── Espresso dark section — upload card ── */}
+      {/* ── Upload / digitize section — inherits body atmosphere gradient ── */}
       <div style={{
         width: "100vw",
         marginLeft: "calc(50% - 50vw)",
-        background: "linear-gradient(to bottom, #FDFBF1 0%, #2D241E 26%)",
         padding: isMobile ? "48px 24px 72px" : "80px 24px 110px",
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         position: "relative",
-        overflow: "hidden",
+        overflow: "visible",
       }}>
 
-        {/* Saffron focal-point orb — sits behind the card */}
+        {/* Sage atmosphere orb — cool accent near upload card */}
+        <div style={{
+          position: "absolute",
+          top: "30%",
+          left: "62%",
+          transform: "translate(-50%, -50%)",
+          width: 560, height: 560, borderRadius: "50%",
+          background: "rgba(226,232,213,0.22)",
+          filter: "blur(120px)",
+          pointerEvents: "none", zIndex: 0,
+        }} />
+
+        {/* Saffron focal orb — warm glow behind card */}
         <div style={{
           position: "absolute",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: 680,
-          height: 680,
-          borderRadius: "50%",
-          background: "rgba(244,197,66,0.20)",
-          filter: "blur(140px)",
-          pointerEvents: "none",
-          zIndex: 0,
+          width: 680, height: 680, borderRadius: "50%",
+          background: "rgba(244,197,66,0.14)",
+          filter: "blur(150px)",
+          pointerEvents: "none", zIndex: 0,
         }} />
 
-        <div style={{ maxWidth: 460, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
-          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(244,197,66,0.7)", marginBottom: 32 }}>
+        <div style={{ maxWidth: 460, width: "100%", textAlign: "center", position: "relative", zIndex: 2 }}>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500,
+            letterSpacing: "0.14em", textTransform: "uppercase",
+            color: "rgba(253,251,241,0.45)", marginBottom: 32,
+          }}>
             Digitize your cookbooks
           </p>
+
+          {/* ── Illustration: person photographing a cookbook ── */}
+          <div style={{
+            display: "flex", justifyContent: "center", marginBottom: 24,
+          }}>
+            <img
+              src="/takeimage.svg"
+              alt="Person photographing a cookbook"
+              style={{
+                width: isMobile ? 150 : 190,
+                height: "auto",
+                opacity: 0.60,
+              }}
+            />
+          </div>
 
           {/* ── Upload card ── */}
           <div
@@ -464,8 +501,8 @@ function EmptyStateHero({ onFiles }) {
             onClick={() => fileInputRef.current?.click()}
             style={{
               background: isDragging ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)",
-              backdropFilter: "blur(48px)",
-              WebkitBackdropFilter: "blur(48px)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
               border: isDragging
                 ? "1px solid rgba(244,197,66,0.55)"
                 : isHovering
@@ -476,13 +513,13 @@ function EmptyStateHero({ onFiles }) {
               textAlign: "center",
               cursor: "pointer",
               transition: "border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s",
-              transform: isHovering && !isDragging ? "scale(1.05)" : "scale(1)",
+              transform: isHovering && !isDragging ? "scale(1.03)" : "scale(1)",
               boxShadow: isHovering && !isDragging
-                ? "0 24px 64px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.06)"
-                : "0 8px 32px rgba(0,0,0,0.18)",
+                ? "0 24px 64px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.08)"
+                : "none",
             }}
           >
-            {/* Minimalist thin-line camera icon */}
+            {/* Thin-line camera icon */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
               <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M17.5 9.5L15 13.5H8C6.9 13.5 6 14.4 6 15.5V34C6 35.1 6.9 36 8 36H38C39.1 36 40 35.1 40 34V15.5C40 14.4 39.1 13.5 38 13.5H31L28.5 9.5H17.5Z"
@@ -1190,10 +1227,7 @@ export default function RecipeApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;700;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #FDFBF1; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #f0ebe0; }
-        ::-webkit-scrollbar-thumb { background: #c8a97e; border-radius: 3px; }
+        body { background: transparent; }
         .card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(44,36,22,0.12); }
         .btn-primary { background: #b5622a; color: #faf7f2; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; transition: background 0.2s; }
@@ -1269,18 +1303,6 @@ export default function RecipeApp() {
           .stepper-connector { width: 24px; }
         }
       `}</style>
-
-      {/* ── Global mesh gradient background — fixed, starts 10vh down so header stays clean ── */}
-      <div style={{ position: "fixed", top: "10vh", left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-        {/* Sage blob — upper left */}
-        <div style={{ position: "absolute", top: "-8%", left: "4%", width: 720, height: 720, background: "radial-gradient(circle, rgba(226,232,213,0.72) 0%, transparent 68%)", filter: "blur(120px)", borderRadius: "50%", animation: "blobDrift1 14s ease-in-out infinite", willChange: "transform" }} />
-        {/* Sage blob — right */}
-        <div style={{ position: "absolute", top: "26%", right: "2%", width: 600, height: 600, background: "radial-gradient(circle, rgba(226,232,213,0.58) 0%, transparent 68%)", filter: "blur(100px)", borderRadius: "50%", animation: "blobDrift2 18s ease-in-out infinite", willChange: "transform" }} />
-        {/* Saffron accent blob — bottom center */}
-        <div style={{ position: "absolute", bottom: "6%", left: "20%", width: 520, height: 520, background: "radial-gradient(circle, rgba(244,197,66,0.24) 0%, transparent 68%)", filter: "blur(110px)", borderRadius: "50%", animation: "blobDrift3 22s ease-in-out infinite", willChange: "transform" }} />
-        {/* Sage blob — mid (4th orb for depth) */}
-        <div style={{ position: "absolute", top: "54%", left: "38%", width: 440, height: 440, background: "radial-gradient(circle, rgba(226,232,213,0.42) 0%, transparent 68%)", filter: "blur(100px)", borderRadius: "50%", animation: "blobDrift1 28s ease-in-out 6s infinite", willChange: "transform" }} />
-      </div>
 
       {/* ── Top bar ── */}
       <header className="site-header" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
