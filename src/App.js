@@ -307,11 +307,11 @@ function EmptyStateHero({ onFiles }) {
 
   return (
     <>
-      {/* ── Scroll container (200vh desktop / 100svh mobile) with sticky hero ── */}
+      {/* ── Scroll container (130vh desktop / 100svh mobile) with sticky hero ── */}
       <div
         ref={containerRef}
         style={{
-          height: isMobile ? "100svh" : "200vh",
+          height: isMobile ? "100svh" : "130vh",
           width: "100vw",
           marginLeft: "calc(50% - 50vw)",
           marginTop: isMobile ? "-16px" : "-32px",
@@ -326,7 +326,8 @@ function EmptyStateHero({ onFiles }) {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: isMobile ? "center" : "flex-start",
+          paddingTop: isMobile ? 0 : "10vh",
           overflow: "hidden",
         }}>
 
@@ -1255,22 +1256,6 @@ export default function RecipeApp() {
         </div>
       </header>
 
-      {/* ── Secondary nav: Library / Digitize ── */}
-      <div className="header-buttons" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-        <button
-          className={`nav-tab${view === "library" ? " active" : ""}`}
-          onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}
-        >
-          📚 Library <span style={{ color: "#b8a888", fontSize: 13, fontWeight: 400 }}>({recipes.length})</span>
-        </button>
-        <button
-          className="btn-primary"
-          style={{ fontSize: 11, padding: "7px 20px", fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, background: "#D9835C", boxShadow: "0 0 18px rgba(217,131,92,0.38)" }}
-          onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}
-        >
-          + Digitize
-        </button>
-      </div>
 
       <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto" }}>
 
