@@ -96,11 +96,11 @@ ${JSON.stringify({
   }, null, 2)}`;
 };
 
-const callAPI = async (messages, maxTokens = 2000) => {
+const callAPI = async (messages, maxTokens = 2000, model = "claude-opus-4-5") => {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: API_HEADERS,
-    body: JSON.stringify({ model: "claude-opus-4-5", max_tokens: maxTokens, messages }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
   });
   const data = await response.json();
   const text = data.content?.find((b) => b.type === "text")?.text || "";
@@ -108,7 +108,7 @@ const callAPI = async (messages, maxTokens = 2000) => {
 };
 
 const translateRecipe = (recipe, targetLang) =>
-  callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }]);
+  callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }], 1500, "claude-haiku-4-5");
 
 const renderBold = (text) => {
   if (!text) return null;
@@ -227,26 +227,19 @@ export default function RecipeApp() {
 
         setExtracting(false);
         setTranslating(true);
-
-        try {
-          const [de, fr] = await Promise.all([
-            translateRecipe(parsed, "de"),
-            translateRecipe(parsed, "fr"),
-          ]);
-          parsed.translations = { de, fr };
-        } catch {
-          parsed.translations = {};
-        }
-
-        setTranslating(false);
         setGeneratingImage(true);
 
-        try {
-          const generatedImageUrl = await generateRecipeImage(parsed);
-          if (generatedImageUrl) parsed.generatedImageUrl = generatedImageUrl;
-        } catch {
-          // fall back to cookbook photo
-        }
+        // Run translations and image generation in parallel
+        const [deResult, frResult, imageResult] = await Promise.allSettled([
+          translateRecipe(parsed, "de"),
+          translateRecipe(parsed, "fr"),
+          generateRecipeImage(parsed),
+        ]);
+
+        parsed.translations = {};
+        if (deResult.status === "fulfilled") parsed.translations.de = deResult.value;
+        if (frResult.status === "fulfilled") parsed.translations.fr = frResult.value;
+        if (imageResult.status === "fulfilled" && imageResult.value) parsed.generatedImageUrl = imageResult.value;
 
         setExtractedRecipe(parsed);
       } catch (err) {
@@ -485,7 +478,7 @@ export default function RecipeApp() {
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, color: "#9a8060" }}>
                       <div className="spinner" />
                       <p style={{ fontSize: 16, fontStyle: "italic" }}>
-                        {extracting ? "Reading your recipe…" : translating ? "Translating to German & French…" : "Generating recipe image…"}
+                        {extracting ? "Reading your recipe…" : "Translating & generating image…"}
                       </p>
                     </div>
                   )}
