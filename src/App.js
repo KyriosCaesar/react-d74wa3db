@@ -230,27 +230,31 @@ const getMentionedItems = (step, recipe) => {
 };
 
 // ── Empty State Hero ─────────────────────────────────────────────────────────
-const BOOKS = [
-  { title: "La Cuisine\nFrançaise", spine: "#6B1E29", cover: "#A8293A", coverLight: "#C43348", accent: "#F5D98A" },
-  { title: "The Art\nof Baking",   spine: "#1A3A56", cover: "#24537A", coverLight: "#2E6E9E", accent: "#F0E6C8" },
-  { title: "Cucina\nItaliana",     spine: "#1E4A1E", cover: "#2A6632", coverLight: "#358040", accent: "#F8E27A" },
+// All 8 cookbook cover SVGs served from /public/books/
+const BOOK_IMAGES = [
+  "/books/book-0.svg",
+  "/books/book-1.svg",
+  "/books/book-2.svg",
+  "/books/book-3.svg",
+  "/books/book-4.svg",
+  "/books/book-5.svg",
+  "/books/book-6.svg",
+  "/books/book-7.svg",
 ];
 
-function BookCover({ book }) {
+function BookCover({ src }) {
   return (
     <div style={{
-      width: 140, height: 200,
-      background: `linear-gradient(135deg, ${book.coverLight} 0%, ${book.cover} 100%)`,
-      borderRadius: "2px 6px 6px 2px",
-      boxShadow: "5px 6px 20px rgba(0,0,0,0.30), -1px 0 6px rgba(0,0,0,0.10) inset",
-      position: "relative", overflow: "hidden", flexShrink: 0,
+      width: 130, height: 190,
+      borderRadius: "2px 7px 7px 2px",
+      boxShadow: "6px 8px 28px rgba(0,0,0,0.42), -2px 0 10px rgba(0,0,0,0.18) inset",
+      overflow: "hidden", flexShrink: 0, position: "relative",
     }}>
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 18, background: book.spine, borderRight: "1px solid rgba(0,0,0,0.2)" }} />
-      <div style={{ position: "absolute", left: 26, right: 8, top: 12, bottom: 12, border: `1.5px solid ${book.accent}55`, borderRadius: 2 }} />
-      <div style={{ position: "absolute", left: 30, right: 10, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
-        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, lineHeight: 1.45, color: book.accent, textShadow: "0 1px 3px rgba(0,0,0,0.4)", whiteSpace: "pre-line", margin: 0 }}>{book.title}</p>
-      </div>
-      <div style={{ position: "absolute", top: 0, left: "35%", right: 0, height: "45%", background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)" }} />
+      <img src={src} alt="Cookbook" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      {/* spine shadow */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 8, background: "linear-gradient(to right, rgba(0,0,0,0.32), transparent)", pointerEvents: "none" }} />
+      {/* gloss highlight */}
+      <div style={{ position: "absolute", top: 0, left: "28%", right: 0, height: "40%", background: "linear-gradient(180deg, rgba(255,255,255,0.11) 0%, transparent 100%)", pointerEvents: "none" }} />
     </div>
   );
 }
@@ -262,20 +266,24 @@ function EmptyStateHero({ onFiles }) {
   const [scattered, setScattered] = useState(false);
   const [isMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 640);
 
-  const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
-  const b0x = useTransform(scrollYProgress, [0, 1], [0, -240]);
-  const b0y = useTransform(scrollYProgress, [0, 1], [0, 20]);
-  const b0r = useTransform(scrollYProgress, [0, 1], [-2, -18]);
-  const b1y = useTransform(scrollYProgress, [0, 1], [0, -50]);
-  const b1r = useTransform(scrollYProgress, [0, 1], [1, 6]);
-  const b2x = useTransform(scrollYProgress, [0, 1], [0, 240]);
-  const b2y = useTransform(scrollYProgress, [0, 1], [0, 30]);
-  const b2r = useTransform(scrollYProgress, [0, 1], [3, 20]);
-  const dzOp = useTransform(scrollYProgress, [0.3, 0.8], [0, 1]);
-  const dzY  = useTransform(scrollYProgress, [0.3, 0.8], [60, 0]);
-  const hlOp = useTransform(scrollYProgress, [0, 0.5], [1, 0.65]);
-  const hlY  = useTransform(scrollYProgress, [0, 0.5], [0, -18]);
-  const scOp = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+  const { scrollYProgress: sp } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
+
+  // Desktop scroll-linked transforms — one per book × 3 props (x, y, rotate)
+  const b0x = useTransform(sp, [0, 1], [  0, -480]); const b0y = useTransform(sp, [0, 1], [0,  40]); const b0r = useTransform(sp, [0, 1], [ -3, -24]);
+  const b1x = useTransform(sp, [0, 1], [  0, -330]); const b1y = useTransform(sp, [0, 1], [0,  15]); const b1r = useTransform(sp, [0, 1], [ -1, -15]);
+  const b2x = useTransform(sp, [0, 1], [  0, -175]); const b2y = useTransform(sp, [0, 1], [0, -15]); const b2r = useTransform(sp, [0, 1], [  1,  -7]);
+  const b3x = useTransform(sp, [0, 1], [  0,  -35]); const b3y = useTransform(sp, [0, 1], [0, -35]); const b3r = useTransform(sp, [0, 1], [ -1,  -2]);
+  const b4x = useTransform(sp, [0, 1], [  0,  100]); const b4y = useTransform(sp, [0, 1], [0, -35]); const b4r = useTransform(sp, [0, 1], [  1,   2]);
+  const b5x = useTransform(sp, [0, 1], [  0,  240]); const b5y = useTransform(sp, [0, 1], [0, -15]); const b5r = useTransform(sp, [0, 1], [ -1,   8]);
+  const b6x = useTransform(sp, [0, 1], [  0,  380]); const b6y = useTransform(sp, [0, 1], [0,  15]); const b6r = useTransform(sp, [0, 1], [  2,  16]);
+  const b7x = useTransform(sp, [0, 1], [  0,  520]); const b7y = useTransform(sp, [0, 1], [0,  40]); const b7r = useTransform(sp, [0, 1], [ -2,  25]);
+
+  // Headline + scroll-hint + drop-zone envelope
+  const dzOp = useTransform(sp, [0.3, 0.8], [0, 1]);
+  const dzY  = useTransform(sp, [0.3, 0.8], [60, 0]);
+  const hlOp = useTransform(sp, [0, 0.5], [1, 0.65]);
+  const hlY  = useTransform(sp, [0, 0.5], [0, -18]);
+  const scOp = useTransform(sp, [0, 0.2], [1, 0]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -290,10 +298,17 @@ function EmptyStateHero({ onFiles }) {
   };
 
   const TR = { duration: 0.9, ease: [0.22, 0.68, 0, 1.2] };
+
+  // Per-book config: desktop MotionValues, mobile scatter target, initial rotation, stacking z
   const bookDefs = [
-    { desktopStyle: { x: b0x, y: b0y, rotate: b0r }, init: [0, 0, -2], to: [-220, 20, -18] },
-    { desktopStyle: { y: b1y, rotate: b1r          }, init: [0, 0,  1], to: [  0, -50,   6] },
-    { desktopStyle: { x: b2x, y: b2y, rotate: b2r }, init: [0, 0,  3], to: [ 220,  30,  20] },
+    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -200, y: 40,  r: -22 }, ir: -3,   z: 1 },
+    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x: -140, y: 10,  r: -14 }, ir: -1,   z: 2 },
+    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  -80, y: -15, r:  -7 }, ir:  1,   z: 4 },
+    { ds: { x: b3x, y: b3y, rotate: b3r }, mob: { x:  -25, y: -30, r:  -2 }, ir: -0.5, z: 8 },
+    { ds: { x: b4x, y: b4y, rotate: b4r }, mob: { x:   40, y: -30, r:   2 }, ir:  0.5, z: 8 },
+    { ds: { x: b5x, y: b5y, rotate: b5r }, mob: { x:   95, y: -15, r:   8 }, ir: -1,   z: 4 },
+    { ds: { x: b6x, y: b6y, rotate: b6r }, mob: { x:  155, y: 10,  r:  15 }, ir:  2,   z: 2 },
+    { ds: { x: b7x, y: b7y, rotate: b7r }, mob: { x:  210, y: 40,  r:  22 }, ir: -2,   z: 1 },
   ];
 
   return (
@@ -341,7 +356,7 @@ function EmptyStateHero({ onFiles }) {
           )}
         </motion.div>
 
-        {/* Books scene */}
+        {/* Books scene — all 8 stacked at center, then fly apart */}
         <div style={{ position: "relative", width: "100%", height: 240 }}>
           {bookDefs.map((bd, i) => (
             <motion.div
@@ -350,20 +365,20 @@ function EmptyStateHero({ onFiles }) {
                 position: "absolute",
                 left: "50%",
                 top: "50%",
-                marginLeft: -70,
-                marginTop: -100,
-                zIndex: i === 1 ? 2 : 1,
-                ...(isMobile ? {} : bd.desktopStyle),
+                marginLeft: -65,
+                marginTop: -95,
+                zIndex: bd.z,
+                ...(isMobile ? {} : bd.ds),
               }}
               {...(isMobile ? {
-                initial: { x: 0, y: 0, rotate: bd.init[2] },
+                initial: { x: 0, y: 0, rotate: bd.ir },
                 animate: scattered
-                  ? { x: bd.to[0], y: bd.to[1], rotate: bd.to[2] }
-                  : { x: 0, y: 0, rotate: bd.init[2] },
-                transition: { ...TR, delay: i * 0.06 },
+                  ? { x: bd.mob.x, y: bd.mob.y, rotate: bd.mob.r }
+                  : { x: 0, y: 0, rotate: bd.ir },
+                transition: { ...TR, delay: i * 0.05 },
               } : {})}
             >
-              <BookCover book={BOOKS[i]} />
+              <BookCover src={BOOK_IMAGES[i]} />
             </motion.div>
           ))}
         </div>
@@ -371,7 +386,7 @@ function EmptyStateHero({ onFiles }) {
         {/* Drop zone (glassmorphism) */}
         <motion.div
           style={{
-            zIndex: 4,
+            zIndex: 10,
             width: "100%",
             maxWidth: 460,
             padding: "0 24px",
@@ -381,7 +396,7 @@ function EmptyStateHero({ onFiles }) {
           {...(isMobile ? {
             initial: { opacity: 0, y: 40 },
             animate: scattered ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 },
-            transition: { ...TR, delay: 0.18 },
+            transition: { ...TR, delay: 0.22 },
           } : {})}
         >
           <div
@@ -390,9 +405,9 @@ function EmptyStateHero({ onFiles }) {
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             style={{
-              background: "rgba(253,249,243,0.75)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
+              background: "rgba(253,249,243,0.78)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
               border: isDragging ? "2px dashed #b5622a" : "2px dashed rgba(181,98,42,0.50)",
               borderRadius: 12,
               padding: "28px 24px",
