@@ -269,11 +269,44 @@ const generateGeminiImage = async (prompt) => {
   return b64 ? `data:image/png;base64,${b64}` : null;
 };
 
-const generateIngredientImage = async (name) => {
-  const key = `ing:${name.toLowerCase().trim()}`;
+const generateIngredientImage = async (name, amount, unit) => {
+  const safeAmount = (amount ?? "").toString().trim();
+  const safeUnit  = (unit   ?? "").toString().trim().toLowerCase();
+  const key = `ing:${name.toLowerCase().trim()}:${safeAmount}:${safeUnit}`;
   const cached = await fetchCachedImage(key);
   if (cached) return cached;
-  const prompt = `Minimalist, clean, top-down food photography of ${name} on a pure white background. Single ingredient only, no text, no labels, soft natural lighting, cookbook style.`;
+
+  // Units that represent discrete, countable items
+  const countableUnits = new Set([
+    "", "whole", "piece", "pieces", "pcs", "pc",
+    "slice", "slices", "clove", "cloves",
+    "sprig", "sprigs", "leaf", "leaves",
+    "stalk", "stalks", "head", "heads",
+    "bunch", "bunches", "strip", "strips",
+  ]);
+  // Units that are included verbatim in the description (not "insignificant")
+  const insignificantUnits = new Set(["whole", "piece", "pieces", "pcs", "pc"]);
+
+  const isCountable = countableUnits.has(safeUnit);
+  const numAmount   = parseFloat(safeAmount);
+  const isWholeNum  = !isNaN(numAmount) && Number.isInteger(numAmount) && numAmount >= 1 && numAmount <= 12;
+
+  let subject;
+  if (isCountable && isWholeNum) {
+    // e.g. "exactly 2 eggs"  or  "exactly 3 cloves of garlic"
+    const unitPart = safeUnit && !insignificantUnits.has(safeUnit) ? ` ${safeUnit} of` : "";
+    subject = `exactly ${numAmount}${unitPart} ${name}`;
+  } else if (safeAmount && safeUnit) {
+    // e.g. "200 g of flour"
+    subject = `${safeAmount} ${safeUnit} of ${name}`;
+  } else if (safeAmount) {
+    // e.g. "0.5 lemon"
+    subject = `${safeAmount} ${name}`;
+  } else {
+    subject = name;
+  }
+
+  const prompt = `Minimalist, clean, top-down food photography of ${subject} on a pure white background. No text, no labels, soft natural lighting, cookbook style.`;
   const url = await generateGeminiImage(prompt);
   if (url) await storeCachedImage(key, url);
   return url;
@@ -326,7 +359,7 @@ const removeBackground = (dataUrl) =>
   });
 
 // Shared thumbnail component
-const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) => {
+const ItemThumb = ({ name, fetchFn, amount, unit, size = 44, spinnerSize = 16, delay = 0 }) => {
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -334,7 +367,7 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
     if (src) return;
     let alive = true;
     const timer = setTimeout(() => {
-      fetchFn(name)
+      fetchFn(name, amount, unit)
         .then(async (url) => {
           if (!alive) return;
           if (url) {
@@ -347,7 +380,7 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
         .catch(() => { if (alive) setLoading(false); });
     }, delay);
     return () => { alive = false; clearTimeout(timer); };
-  }, [name, delay, fetchFn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [name, amount, unit, delay, fetchFn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ width: size, height: size, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -360,11 +393,14 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
   );
 };
 
-const IngredientThumb = ({ name, delay = 0 }) =>
-  <ItemThumb name={name} fetchFn={generateIngredientImage} size={72} spinnerSize={20} delay={delay} />;
+// size is exposed so step-chips can request a smaller thumbnail (e.g. size=28)
+const IngredientThumb = ({ name, amount, unit, size = 72, delay = 0 }) =>
+  <ItemThumb name={name} amount={amount} unit={unit} fetchFn={generateIngredientImage}
+    size={size} spinnerSize={Math.round(size * 0.28)} delay={delay} />;
 
-const EquipmentThumb = ({ name, delay = 0 }) =>
-  <ItemThumb name={name} fetchFn={generateEquipmentImage} size={60} spinnerSize={18} delay={delay} />;
+const EquipmentThumb = ({ name, size = 60, delay = 0 }) =>
+  <ItemThumb name={name} fetchFn={generateEquipmentImage}
+    size={size} spinnerSize={Math.round(size * 0.3)} delay={delay} />;
 
 // Continuously cycles through `messages`, fading each one in and out,
 // until `isActive` becomes false.
@@ -1111,7 +1147,7 @@ export default function RecipeApp() {
                       <ul style={{ listStyle: "none" }}>
                         {r.ingredients?.map((ing, i) => (
                           <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 10, alignItems: "center" }}>
-                            <IngredientThumb name={ing.name} delay={i * 300} />
+                            <IngredientThumb name={ing.name} amount={ing.amount} unit={ing.unit} delay={i * 300} />
                             <div style={{ flex: 1 }}>
                               <span style={{ fontWeight: 600, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
                               <span> {ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
@@ -1136,19 +1172,58 @@ export default function RecipeApp() {
                     <div>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Method</h3>
                       <ol style={{ listStyle: "none" }}>
-                        {r.steps?.map((step, i) => (
-                          <li key={i} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                            <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
-                            <div>
-                              <p style={{ fontSize: 15, lineHeight: 1.6 }}>{renderBold(step.instruction)}</p>
-                              {(step.duration || step.temp) && (
-                                <p style={{ fontSize: 13, color: "#9a8060", marginTop: 4 }}>
-                                  {step.duration && `⏱ ${step.duration}min`} {step.temp && `🌡 ${step.temp}°C`}
-                                </p>
-                              )}
-                            </div>
-                          </li>
-                        ))}
+                        {r.steps?.map((step, i) => {
+                          // Find which ingredients / equipment are mentioned in this step
+                          const text = (step.instruction || "").toLowerCase();
+                          const mentionedItems = [];
+                          const seen = new Set();
+                          const countableUnits = new Set(["","whole","piece","pieces","pcs","pc","slice","slices","clove","cloves","sprig","sprigs","leaf","leaves","stalk","stalks","head","heads","bunch","bunches","strip","strips"]);
+                          for (const ing of (r.ingredients || [])) {
+                            const n = ing.name.toLowerCase().trim();
+                            const variants = [n, n + "s", n + "es", n.endsWith("s") ? n.slice(0,-1) : n + "x"];
+                            if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
+                              seen.add(n);
+                              // For step chips, don't encode quantity in the name display
+                              // but keep amount/unit so the same cached image is reused
+                              mentionedItems.push({ type: "ingredient", name: ing.name, amount: ing.amount, unit: ing.unit });
+                            }
+                          }
+                          for (const eq of (r.equipment || [])) {
+                            const n = eq.toLowerCase().trim();
+                            const variants = [n, n + "s", n.endsWith("s") ? n.slice(0,-1) : n + "x"];
+                            if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
+                              seen.add(n);
+                              mentionedItems.push({ type: "equipment", name: eq });
+                            }
+                          }
+
+                          return (
+                            <li key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                              <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
+                              <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: 15, lineHeight: 1.6, margin: 0 }}>{renderBold(step.instruction)}</p>
+                                {mentionedItems.length > 0 && (
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                                    {mentionedItems.map((item, j) => (
+                                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 4, background: "#faf7f2", border: "1px solid #e8ddc8", borderRadius: 20, padding: "2px 9px 2px 2px", fontSize: 12, color: "#5a4020", fontWeight: 500 }}>
+                                        {item.type === "ingredient"
+                                          ? <IngredientThumb name={item.name} amount={item.amount} unit={item.unit} size={28} delay={j * 80} />
+                                          : <EquipmentThumb name={item.name} size={28} delay={j * 80} />
+                                        }
+                                        {item.name}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {(step.duration || step.temp) && (
+                                  <p style={{ fontSize: 13, color: "#9a8060", marginTop: 6 }}>
+                                    {step.duration && `⏱ ${step.duration}min`} {step.temp && `🌡 ${step.temp}°C`}
+                                  </p>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ol>
                       {r.notes && (
                         <div style={{ background: "#fdf9f0", border: "1px solid #e8ddc8", borderRadius: 6, padding: 14, marginTop: 16 }}>
