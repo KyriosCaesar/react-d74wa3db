@@ -248,7 +248,7 @@ function BookCover({ src }) {
       src={src}
       alt="Cookbook"
       style={{
-        height: 185,
+        height: 220,
         width: "auto",
         display: "block",
         filter: "drop-shadow(4px 10px 26px rgba(0,0,0,0.48)) drop-shadow(-2px 0 6px rgba(0,0,0,0.22))",
