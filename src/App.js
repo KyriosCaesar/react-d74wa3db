@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
+import './style.css';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -1227,7 +1228,6 @@ export default function RecipeApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;700;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: transparent; }
         .card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(44,36,22,0.12); }
         .btn-primary { background: #b5622a; color: #faf7f2; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; transition: background 0.2s; }
