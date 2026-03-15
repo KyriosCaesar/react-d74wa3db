@@ -1,4 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const SAMPLE_RECIPES = [];
 
@@ -150,24 +156,20 @@ const generateRecipeImage = async (recipe) => {
   return b64 ? `data:image/png;base64,${b64}` : null;
 };
 
-// --- Ingredient image cache (localStorage) ---
-const INGREDIENT_CACHE_KEY = "ma_cuisine_ingredient_imgs_v1";
-
-const readIngredientCache = () => {
-  try { return JSON.parse(localStorage.getItem(INGREDIENT_CACHE_KEY) || "{}"); }
-  catch { return {}; }
-};
-
-const writeIngredientCache = (cache) => {
-  try { localStorage.setItem(INGREDIENT_CACHE_KEY, JSON.stringify(cache)); }
-  catch {} // storage full — silently skip
-};
-
+// --- Ingredient image cache (Supabase) ---
 const generateIngredientImage = async (name) => {
   const key = name.toLowerCase().trim();
-  const cached = readIngredientCache()[key];
-  if (cached) return cached;
 
+  // 1. Check Supabase cache first
+  const { data: cached } = await supabase
+    .from("ingredient_images")
+    .select("image_data")
+    .eq("name", key)
+    .maybeSingle();
+
+  if (cached?.image_data) return cached.image_data;
+
+  // 2. Generate with Gemini
   const prompt = `Minimalist, clean, top-down food photography of ${name} on a pure white background. Single ingredient only, no text, no labels, soft natural lighting, cookbook style.`;
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
@@ -185,15 +187,18 @@ const generateIngredientImage = async (name) => {
   if (!b64) return null;
 
   const url = `data:image/png;base64,${b64}`;
-  writeIngredientCache({ ...readIngredientCache(), [key]: url });
+
+  // 3. Persist to Supabase (upsert — safe if called concurrently)
+  await supabase
+    .from("ingredient_images")
+    .upsert({ name: key, image_data: url }, { onConflict: "name" });
+
   return url;
 };
 
 const IngredientThumb = ({ name, delay = 0 }) => {
-  const key = name.toLowerCase().trim();
-  const cachedSrc = readIngredientCache()[key];
-  const [src, setSrc] = useState(cachedSrc || null);
-  const [loading, setLoading] = useState(!cachedSrc);
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (src) return;
