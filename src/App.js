@@ -358,6 +358,14 @@ function EmptyStateHero({ onFiles }) {
 
         {/* Books scene — all 8 stacked at center, then fly apart */}
         <div style={{ position: "relative", width: "100%", height: 240 }}>
+          {/* Ground shadow beneath all books */}
+          <div style={{
+            position: "absolute", bottom: 0, left: "50%",
+            transform: "translateX(-50%)",
+            width: 560, height: 48,
+            background: "radial-gradient(ellipse at center, rgba(44,36,22,0.22) 0%, transparent 72%)",
+            pointerEvents: "none", zIndex: 0,
+          }} />
           {bookDefs.map((bd, i) => (
             <motion.div
               key={i}
@@ -424,6 +432,13 @@ function EmptyStateHero({ onFiles }) {
             <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => onFiles(e.target.files)} />
           </div>
         </motion.div>
+
+        {/* Bottom fade — dissolves hero into site background (#faf7f2) */}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: 200,
+          background: "linear-gradient(to bottom, transparent 0%, #faf7f2 100%)",
+          pointerEvents: "none", zIndex: 20,
+        }} />
       </div>
     </div>
   );
