@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -227,6 +228,191 @@ const getMentionedItems = (step, recipe) => {
   }
   return result;
 };
+
+// ── Empty State Hero ─────────────────────────────────────────────────────────
+const BOOKS = [
+  { title: "La Cuisine\nFrançaise", spine: "#6B1E29", cover: "#A8293A", coverLight: "#C43348", accent: "#F5D98A" },
+  { title: "The Art\nof Baking",   spine: "#1A3A56", cover: "#24537A", coverLight: "#2E6E9E", accent: "#F0E6C8" },
+  { title: "Cucina\nItaliana",     spine: "#1E4A1E", cover: "#2A6632", coverLight: "#358040", accent: "#F8E27A" },
+];
+
+function BookCover({ book }) {
+  return (
+    <div style={{
+      width: 140, height: 200,
+      background: `linear-gradient(135deg, ${book.coverLight} 0%, ${book.cover} 100%)`,
+      borderRadius: "2px 6px 6px 2px",
+      boxShadow: "5px 6px 20px rgba(0,0,0,0.30), -1px 0 6px rgba(0,0,0,0.10) inset",
+      position: "relative", overflow: "hidden", flexShrink: 0,
+    }}>
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 18, background: book.spine, borderRight: "1px solid rgba(0,0,0,0.2)" }} />
+      <div style={{ position: "absolute", left: 26, right: 8, top: 12, bottom: 12, border: `1.5px solid ${book.accent}55`, borderRadius: 2 }} />
+      <div style={{ position: "absolute", left: 30, right: 10, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
+        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, lineHeight: 1.45, color: book.accent, textShadow: "0 1px 3px rgba(0,0,0,0.4)", whiteSpace: "pre-line", margin: 0 }}>{book.title}</p>
+      </div>
+      <div style={{ position: "absolute", top: 0, left: "35%", right: 0, height: "45%", background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)" }} />
+    </div>
+  );
+}
+
+function EmptyStateHero({ onFiles }) {
+  const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [scattered, setScattered] = useState(false);
+  const [isMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 640);
+
+  const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
+  const b0x = useTransform(scrollYProgress, [0, 1], [0, -240]);
+  const b0y = useTransform(scrollYProgress, [0, 1], [0, 20]);
+  const b0r = useTransform(scrollYProgress, [0, 1], [-2, -18]);
+  const b1y = useTransform(scrollYProgress, [0, 1], [0, -50]);
+  const b1r = useTransform(scrollYProgress, [0, 1], [1, 6]);
+  const b2x = useTransform(scrollYProgress, [0, 1], [0, 240]);
+  const b2y = useTransform(scrollYProgress, [0, 1], [0, 30]);
+  const b2r = useTransform(scrollYProgress, [0, 1], [3, 20]);
+  const dzOp = useTransform(scrollYProgress, [0.3, 0.8], [0, 1]);
+  const dzY  = useTransform(scrollYProgress, [0.3, 0.8], [60, 0]);
+  const hlOp = useTransform(scrollYProgress, [0, 0.5], [1, 0.65]);
+  const hlY  = useTransform(scrollYProgress, [0, 0.5], [0, -18]);
+  const scOp = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const t = setTimeout(() => setScattered(true), 900);
+    return () => clearTimeout(t);
+  }, [isMobile]);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
+  };
+
+  const TR = { duration: 0.9, ease: [0.22, 0.68, 0, 1.2] };
+  const bookDefs = [
+    { desktopStyle: { x: b0x, y: b0y, rotate: b0r }, init: [0, 0, -2], to: [-220, 20, -18] },
+    { desktopStyle: { y: b1y, rotate: b1r          }, init: [0, 0,  1], to: [  0, -50,   6] },
+    { desktopStyle: { x: b2x, y: b2y, rotate: b2r }, init: [0, 0,  3], to: [ 220,  30,  20] },
+  ];
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        height: isMobile ? "100svh" : "200vh",
+        width: "100vw",
+        marginLeft: "calc(50% - 50vw)",
+        marginTop: isMobile ? "-16px" : "-32px",
+        position: "relative",
+      }}
+    >
+      <div style={{
+        position: isMobile ? "relative" : "sticky",
+        top: 0,
+        height: isMobile ? "100svh" : "100vh",
+        background: "linear-gradient(165deg, #fdf8f0 0%, #f3e8d5 55%, #e8d5bc 100%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}>
+        {/* Headline */}
+        <motion.div
+          style={isMobile
+            ? { textAlign: "center", padding: "0 24px", marginBottom: 48 }
+            : { opacity: hlOp, y: hlY, textAlign: "center", padding: "0 24px", marginBottom: 64 }}
+          {...(isMobile ? {
+            animate: { opacity: scattered ? 0.7 : 1, y: scattered ? -16 : 0 },
+            transition: TR,
+          } : {})}
+        >
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(22px, 5vw, 50px)", color: "#2c2416", lineHeight: 1.2, maxWidth: 540, margin: "0 auto" }}>
+            What will you cook<br />from your shelf today?
+          </h2>
+          {!isMobile && (
+            <motion.p style={{ color: "#9a8060", fontSize: 15, marginTop: 18, fontStyle: "italic", opacity: scOp }}>
+              Scroll to open your cookbooks ↓
+            </motion.p>
+          )}
+          {isMobile && !scattered && (
+            <p style={{ color: "#b8a888", fontSize: 14, marginTop: 14, fontStyle: "italic" }}>Opening your cookbooks…</p>
+          )}
+        </motion.div>
+
+        {/* Books scene */}
+        <div style={{ position: "relative", width: "100%", height: 240 }}>
+          {bookDefs.map((bd, i) => (
+            <motion.div
+              key={i}
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                marginLeft: -70,
+                marginTop: -100,
+                zIndex: i === 1 ? 2 : 1,
+                ...(isMobile ? {} : bd.desktopStyle),
+              }}
+              {...(isMobile ? {
+                initial: { x: 0, y: 0, rotate: bd.init[2] },
+                animate: scattered
+                  ? { x: bd.to[0], y: bd.to[1], rotate: bd.to[2] }
+                  : { x: 0, y: 0, rotate: bd.init[2] },
+                transition: { ...TR, delay: i * 0.06 },
+              } : {})}
+            >
+              <BookCover book={BOOKS[i]} />
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Drop zone (glassmorphism) */}
+        <motion.div
+          style={{
+            zIndex: 4,
+            width: "100%",
+            maxWidth: 460,
+            padding: "0 24px",
+            marginTop: 28,
+            ...(isMobile ? {} : { opacity: dzOp, y: dzY }),
+          }}
+          {...(isMobile ? {
+            initial: { opacity: 0, y: 40 },
+            animate: scattered ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 },
+            transition: { ...TR, delay: 0.18 },
+          } : {})}
+        >
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              background: "rgba(253,249,243,0.75)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              border: isDragging ? "2px dashed #b5622a" : "2px dashed rgba(181,98,42,0.50)",
+              borderRadius: 12,
+              padding: "28px 24px",
+              textAlign: "center",
+              cursor: "pointer",
+              transition: "border-color 0.2s, background 0.2s",
+              boxShadow: "0 8px 40px rgba(44,36,22,0.12), 0 2px 8px rgba(44,36,22,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 38, marginBottom: 10 }}>📸</div>
+            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#2c2416", marginBottom: 6 }}>Photograph a cookbook page</p>
+            <p style={{ color: "#9a8060", fontSize: 14 }}>Drop here, or tap to choose an image</p>
+            <p style={{ color: "#b8a888", fontSize: 12, marginTop: 8 }}>JPG · PNG · HEIC — Claude will extract the full recipe</p>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => onFiles(e.target.files)} />
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
 
 const generateRecipeImage = async (recipe) => {
   const directions = ["top-right", "top-left", "bottom-right", "bottom-left"];
@@ -991,28 +1177,23 @@ export default function RecipeApp() {
         {/* LIBRARY VIEW */}
         {view === "library" && (
           <div className="fade-in">
-            <div className="library-top" style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-              <input className="input" placeholder="Search recipes, ingredients, tags…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {categories.map(cat => (
-                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", borderColor: activeCategory === cat ? "#b5622a" : "#d4c5a9", background: activeCategory === cat ? "#b5622a" : "transparent", color: activeCategory === cat ? "#faf7f2" : "#7a6040", cursor: "pointer", fontSize: 14, fontFamily: "'Crimson Text', serif", transition: "all 0.2s" }}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {recipes.length === 0 ? (
+              <EmptyStateHero onFiles={(files) => { handleImagesUpload(files); setView("digitize"); }} />
+            ) : (
+              <>
+                <div className="library-top" style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+                  <input className="input" placeholder="Search recipes, ingredients, tags…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {categories.map(cat => (
+                      <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", borderColor: activeCategory === cat ? "#b5622a" : "#d4c5a9", background: activeCategory === cat ? "#b5622a" : "transparent", color: activeCategory === cat ? "#faf7f2" : "#7a6040", cursor: "pointer", fontSize: 14, fontFamily: "'Crimson Text', serif", transition: "all 0.2s" }}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {recipes.length === 0 && (
-              <div style={{ textAlign: "center", padding: "80px 32px", color: "#9a8060" }}>
-                <div style={{ fontSize: 64, marginBottom: 16 }}>📖</div>
-                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, marginBottom: 8 }}>Your library is empty</h2>
-                <p style={{ fontSize: 17, marginBottom: 24 }}>Take a photo of a cookbook page to get started.</p>
-                <button className="btn-primary" onClick={() => setView("digitize")}>Digitize your first recipe</button>
-              </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
-              {filtered.map(recipe => (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+                  {filtered.map(recipe => (
                 <div key={recipe.id} className="card" onClick={() => { setSelectedRecipe(recipe); setView("detail"); setViewLang("en"); }} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, overflow: "hidden", cursor: "pointer" }}>
                   {(recipe.generatedImageUrl || recipe.imageUrl) && (
                     <div style={{ height: 160, overflow: "hidden", background: "#e8ddc8" }}>
@@ -1039,7 +1220,9 @@ export default function RecipeApp() {
                   </div>
                 </div>
               ))}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
