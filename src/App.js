@@ -218,14 +218,30 @@ const generateRecipeImage = async (recipe) => {
     "a wedge of lemon",
   ];
   const randomProp = props[Math.floor(Math.random() * props.length)];
-  const prompt = `A professional, top-down, centered, flat-lay food photograph of a perfectly round plate with ${recipe.title} arranged as described in the recipe: ${recipe.description || recipe.title}. The plate is centered against a seamless and full-frame background of a tablecloth or surface that matches the cultural style of this dish (${recipe.cuisine || "international"} cuisine). To the ${randomDirection} of the plate, place ${randomProp}. The entire frame is a square and looks like a clean, single image taken for a recipe book.`;
+  const basePrompt = `A professional, top-down, centered, flat-lay food photograph of a perfectly round plate with ${recipe.title} arranged as described in the recipe: ${recipe.description || recipe.title}. The plate is centered against a seamless and full-frame background of a tablecloth or surface that matches the cultural style of this dish (${recipe.cuisine || "international"} cuisine). To the ${randomDirection} of the plate, place ${randomProp}. The entire frame is a square and looks like a clean, single image taken for a recipe book.`;
+
+  // Build multimodal parts — include cookbook photo as visual reference when available
+  const parts = [];
+  if (recipe.imageUrl && recipe.imageUrl.startsWith("data:")) {
+    const commaIdx = recipe.imageUrl.indexOf(",");
+    const header   = recipe.imageUrl.slice(0, commaIdx);
+    const b64data  = recipe.imageUrl.slice(commaIdx + 1);
+    const mimeType = header.match(/data:([^;]+);/)?.[1] ?? "image/jpeg";
+    parts.push({ inlineData: { mimeType, data: b64data } });
+    parts.push({
+      text: `The image above is the original cookbook photo for this recipe. Use it as a visual reference — match the dish's appearance, colour palette, plating style, and food presentation as closely as possible in the generated image. Now generate: ${basePrompt}`,
+    });
+  } else {
+    parts.push({ text: basePrompt });
+  }
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: { responseModalities: ["IMAGE"] },
       }),
     }
