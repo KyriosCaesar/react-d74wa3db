@@ -209,7 +209,43 @@ const generateEquipmentImage = async (name) => {
   return url;
 };
 
-// Shared thumbnail component — images blend into page via mix-blend-mode: multiply
+// Canvas-based background removal: samples the 4 corner pixels to detect the
+// actual background colour (handles off-white / light-grey Gemini outputs),
+// then fades out pixels whose colour is close to that background.
+const removeBackground = (dataUrl) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      const W = canvas.width, H = canvas.height;
+
+      // Average the 4 corners to detect the background colour
+      const px = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i+1], d[i+2]]; };
+      const corners = [px(0,0), px(W-1,0), px(0,H-1), px(W-1,H-1)];
+      const bg = corners.reduce((s, c) => [s[0]+c[0], s[1]+c[1], s[2]+c[2]], [0,0,0]).map(v => v / 4);
+
+      const T = 40, F = 25; // colour-distance threshold and feather range
+      for (let i = 0; i < d.length; i += 4) {
+        const dist = Math.sqrt((d[i]-bg[0])**2 + (d[i+1]-bg[1])**2 + (d[i+2]-bg[2])**2);
+        if (dist < T + F) {
+          d[i+3] = dist < T ? 0 : Math.round(((dist - T) / F) * 255);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: return original unchanged
+    img.src = dataUrl;
+  });
+
+// Shared thumbnail component
 const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) => {
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -219,7 +255,15 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
     let alive = true;
     const timer = setTimeout(() => {
       fetchFn(name)
-        .then(url => { if (alive) { setSrc(url || null); setLoading(false); } })
+        .then(async (url) => {
+          if (!alive) return;
+          if (url) {
+            const clean = await removeBackground(url);
+            if (alive) { setSrc(clean); setLoading(false); }
+          } else {
+            if (alive) setLoading(false);
+          }
+        })
         .catch(() => { if (alive) setLoading(false); });
     }, delay);
     return () => { alive = false; clearTimeout(timer); };
@@ -228,7 +272,7 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
   return (
     <div style={{ width: size, height: size, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {src ? (
-        <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain", mixBlendMode: "multiply" }} />
+        <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       ) : loading ? (
         <div style={{ width: spinnerSize, height: spinnerSize, border: "2px solid #e8ddc8", borderTopColor: "#b5622a", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       ) : null}
