@@ -8,6 +8,34 @@ const supabase = createClient(
 
 const SAMPLE_RECIPES = [];
 
+// Messages cycled during the extraction phase (Claude reading images)
+const EXTRACTION_MESSAGES = [
+  "Teaching Claude to read handwriting… one smudge at a time.",
+  "Figuring out if that says 'clove' or 'glove'…",
+  "Cross-referencing with 847 cookbooks in the AI's memory…",
+  "Translating chef-speak into a step-by-step guide…",
+  "Converting 'a generous handful' into an actual measurement…",
+  "Separating the mise en place from the mise en page…",
+  "Spotting the secret ingredient hiding in the margin…",
+  "Calculating exactly how many pinches make a teaspoon…",
+  "Reading between the lines — and the ingredient lines…",
+  "Deciding whether 'season to taste' counts as a real instruction…",
+];
+
+// Messages cycled during the translation + image generation phase
+const TRANSLATION_MESSAGES = [
+  "Summoning the German equivalent of 'al dente'…",
+  "Asking the French how they really feel about butter…",
+  "Painting pixels of pure deliciousness for your library…",
+  "Teaching an AI what 'golden brown' looks like…",
+  "Your recipe is getting its professional portrait taken…",
+  "Finding the perfect lighting for the plating shot…",
+  "Translating 'season to taste' into three languages…",
+  "Whisking together colours and textures for the thumbnail…",
+  "Generating a photo even Gordon Ramsay would approve of…",
+  "Almost there — just adding the finishing touches…",
+];
+
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇬🇧" },
   { code: "de", label: "Deutsch", flag: "🇩🇪" },
@@ -298,6 +326,57 @@ const IngredientThumb = ({ name, delay = 0 }) =>
 
 const EquipmentThumb = ({ name, delay = 0 }) =>
   <ItemThumb name={name} fetchFn={generateEquipmentImage} size={60} spinnerSize={18} delay={delay} />;
+
+// Continuously cycles through `messages`, fading each one in and out,
+// until `isActive` becomes false.
+const FadingTextLoader = ({ messages, isActive }) => {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  // Reset to the first message whenever the message set changes (phase switch)
+  useEffect(() => {
+    setIndex(0);
+    setVisible(true);
+  }, [messages]);
+
+  // After each message has been fully visible for ~3.2 s, start fading it out
+  useEffect(() => {
+    if (!isActive) return;
+    const fadeOut = setTimeout(() => setVisible(false), 3200);
+    return () => clearTimeout(fadeOut);
+  }, [index, isActive]);
+
+  // Once the fade-out transition (0.5 s) is done, advance to the next message
+  useEffect(() => {
+    if (!isActive || visible) return;
+    const advance = setTimeout(() => {
+      setIndex(i => (i + 1) % messages.length);
+      setVisible(true);
+    }, 500);
+    return () => clearTimeout(advance);
+  }, [visible, isActive, messages.length]);
+
+  if (!isActive) return null;
+
+  return (
+    <div style={{ textAlign: "center", marginTop: 32, minHeight: 56 }}>
+      <p
+        style={{
+          fontSize: 16,
+          fontStyle: "italic",
+          color: "#9a8060",
+          maxWidth: 440,
+          margin: "0 auto",
+          lineHeight: 1.6,
+          opacity: visible ? 1 : 0,
+          transition: "opacity 0.5s ease",
+        }}
+      >
+        {messages[index]}
+      </p>
+    </div>
+  );
+};
 
 const getRecipeInLang = (recipe, lang) => {
   if (lang === "en" || !recipe.translations?.[lang]) return recipe;
@@ -673,22 +752,11 @@ export default function RecipeApp() {
                   </div>
                 )}
 
-                {/* Spinner + status message */}
-                {isProcessing && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 24, gap: 12, color: "#9a8060" }}>
-                    <div className="spinner" />
-                    <p style={{ fontSize: 16, fontStyle: "italic" }}>
-                      {extracting
-                        ? `Analysing ${previewImages.length > 1 ? `${previewImages.length} images` : "your recipe"}…`
-                        : "Translating & generating images…"}
-                    </p>
-                    {previewImages.length > 1 && extracting && (
-                      <p style={{ fontSize: 13, color: "#b8a888" }}>
-                        Claude is determining how many recipes are present across all images
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Fading contextual messages while processing */}
+                <FadingTextLoader
+                  messages={extracting ? EXTRACTION_MESSAGES : TRANSLATION_MESSAGES}
+                  isActive={isProcessing}
+                />
 
                 {/* Error state */}
                 {error && (
