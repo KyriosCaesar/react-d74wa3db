@@ -283,6 +283,8 @@ function EmptyStateHero({ onFiles }) {
   const hlY  = useTransform(sp, [0, 0.5], [0, -18]);
   // Scroll indicator fades out as soon as user starts scrolling
   const scOp = useTransform(sp, [0, 0.2], [1, 0]);
+  // Bottom fade gradient — invisible at rest, fades in as user scrolls toward espresso
+  const fadeOp = useTransform(sp, [0, 0.35], [0, 1]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -407,11 +409,12 @@ function EmptyStateHero({ onFiles }) {
             </motion.div>
           )}
 
-          {/* ── Bottom fade — hero blends into espresso section ── */}
-          <div style={{
+          {/* ── Bottom fade — hero blends into espresso section (hidden at rest) ── */}
+          <motion.div style={{
             position: "absolute", bottom: 0, left: 0, right: 0, height: 220,
             background: "linear-gradient(to bottom, transparent 0%, #2D241E 100%)",
             pointerEvents: "none", zIndex: 10,
+            opacity: fadeOp,
           }} />
         </div>
       </div>
