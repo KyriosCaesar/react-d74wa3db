@@ -21,9 +21,22 @@ const API_HEADERS = {
   "anthropic-dangerous-direct-browser-access": "true",
 };
 
-const extractRecipePrompt = () => `You are an expert culinary editor and recipe designer. Your goal is to take the recipe in this image and reformat it into a highly structured, user-friendly format optimized for home cooks. Return a JSON object ONLY — no markdown fences, no explanation, just raw JSON.
+// Returns a JSON ARRAY of recipe objects (even for a single recipe).
+// Includes instructions for Claude to determine how many distinct recipes
+// exist across all supplied images.
+const extractRecipesPrompt = () => `You are an expert culinary editor and recipe designer. I am sending you one or more images of cookbook pages or recipe cards.
 
-Apply every rule below strictly:
+FIRST, determine how many distinct, complete recipes exist across ALL images combined:
+- If multiple images show different parts or angles of the SAME recipe, count it as ONE recipe.
+- If a single image contains multiple separate recipes, count each as its own recipe.
+- If each image shows a completely different recipe, count each separately.
+
+THEN, for each distinct recipe, extract and structure it using the rules below.
+
+Return a JSON ARRAY of recipe objects — even if there is only one recipe, wrap it in an array: [{...}]
+Return ONLY valid JSON — no markdown fences, no explanation.
+
+Apply every rule below strictly for each recipe:
 
 1. METADATA
 - "title": exact recipe name.
@@ -55,7 +68,7 @@ e) Do NOT include background information, tips, or warnings inside steps — mov
 6. NOTES
 Collect all chef's tips, variations, resting times, storage advice, and warnings here. Keep the active steps clean.
 
-Return this exact JSON structure:
+Each recipe object must follow this exact structure:
 {
   "title": "Recipe name",
   "description": "1–2 sentence description",
@@ -79,7 +92,7 @@ Return this exact JSON structure:
   "notes": "Resting time, tips, variations, storage advice."
 }
 
-Rules: return ONLY valid JSON. Use null for any unknown field. "thermomixAdapted": true only if you rewrite steps for Thermomix.`;
+Use null for any unknown field. "thermomixAdapted": true only if you rewrite steps for Thermomix.`;
 
 const translateRecipePrompt = (recipe, targetLang) => {
   const langName = targetLang === "de" ? "German" : "French";
@@ -281,10 +294,10 @@ const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) =>
 };
 
 const IngredientThumb = ({ name, delay = 0 }) =>
-  <ItemThumb name={name} fetchFn={generateIngredientImage} size={48} spinnerSize={16} delay={delay} />;
+  <ItemThumb name={name} fetchFn={generateIngredientImage} size={72} spinnerSize={20} delay={delay} />;
 
 const EquipmentThumb = ({ name, delay = 0 }) =>
-  <ItemThumb name={name} fetchFn={generateEquipmentImage} size={40} spinnerSize={14} delay={delay} />;
+  <ItemThumb name={name} fetchFn={generateEquipmentImage} size={60} spinnerSize={18} delay={delay} />;
 
 const getRecipeInLang = (recipe, lang) => {
   if (lang === "en" || !recipe.translations?.[lang]) return recipe;
@@ -317,7 +330,7 @@ export default function RecipeApp() {
   const [extracting, setExtracting] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [previewImages, setPreviewImages] = useState([]); // array of dataUrls
   const [extractedRecipe, setExtractedRecipe] = useState(null);
   const [error, setError] = useState(null);
   const [exportedRecipe, setExportedRecipe] = useState(null);
@@ -335,62 +348,90 @@ export default function RecipeApp() {
     return matchesSearch && matchesCat;
   });
 
-  const handleImageUpload = useCallback(async (file) => {
-    if (!file) return;
+  // Handles one or more image files. Sends all images to Claude in a single
+  // API call and lets the model decide how many recipes are present.
+  const handleImagesUpload = useCallback(async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => f && f.type.startsWith("image/"));
+    if (files.length === 0) return;
+
     setError(null);
     setExtractedRecipe(null);
     setViewLang("en");
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target.result.split(",")[1];
-      const dataUrl = e.target.result;
-      setPreviewImage(dataUrl);
-      setExtracting(true);
+    // Read all files as base64 + dataUrl in parallel
+    const fileData = await Promise.all(
+      files.map(file => new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve({
+          base64: e.target.result.split(",")[1],
+          dataUrl: e.target.result,
+          mediaType: file.type,
+        });
+        reader.readAsDataURL(file);
+      }))
+    );
 
-      try {
-        const parsed = await callAPI([{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
-            { type: "text", text: extractRecipePrompt() },
-          ],
-        }]);
+    setPreviewImages(fileData.map(f => f.dataUrl));
+    setExtracting(true);
 
-        parsed.id = Date.now();
-        parsed.addedAt = new Date().toISOString();
-        parsed.imageUrl = dataUrl;
+    try {
+      // Build a single Claude message containing ALL images + the extraction prompt
+      const content = [
+        ...fileData.map(f => ({
+          type: "image",
+          source: { type: "base64", media_type: f.mediaType, data: f.base64 },
+        })),
+        { type: "text", text: extractRecipesPrompt() },
+      ];
 
-        setExtracting(false);
-        setTranslating(true);
-        setGeneratingImage(true);
+      const result = await callAPI([{ role: "user", content }]);
+      // Claude returns an array; guard against it returning a plain object
+      const recipesArray = Array.isArray(result) ? result : [result];
 
-        // Run translations and image generation in parallel
+      const now = Date.now();
+      const newRecipes = recipesArray.map((parsed, idx) => ({
+        ...parsed,
+        id: now + idx,
+        addedAt: new Date().toISOString(),
+        imageUrl: fileData[0].dataUrl, // use first photo as the source image
+      }));
+
+      setExtracting(false);
+      setTranslating(true);
+      setGeneratingImage(true);
+
+      // Fan out: translations + recipe image gen for EVERY recipe, all in parallel
+      await Promise.all(newRecipes.map(async (recipe) => {
         const [deResult, frResult, imageResult] = await Promise.allSettled([
-          translateRecipe(parsed, "de"),
-          translateRecipe(parsed, "fr"),
-          generateRecipeImage(parsed),
+          translateRecipe(recipe, "de"),
+          translateRecipe(recipe, "fr"),
+          generateRecipeImage(recipe),
         ]);
+        recipe.translations = {};
+        if (deResult.status === "fulfilled") recipe.translations.de = deResult.value;
+        if (frResult.status === "fulfilled") recipe.translations.fr = frResult.value;
+        if (imageResult.status === "fulfilled" && imageResult.value) recipe.generatedImageUrl = imageResult.value;
+      }));
 
-        parsed.translations = {};
-        if (deResult.status === "fulfilled") parsed.translations.de = deResult.value;
-        if (frResult.status === "fulfilled") parsed.translations.fr = frResult.value;
-        if (imageResult.status === "fulfilled" && imageResult.value) parsed.generatedImageUrl = imageResult.value;
+      setRecipes(prev => [...newRecipes, ...prev]);
+      setPreviewImages([]);
+      setExtractedRecipe(null);
 
-        setRecipes(prev => [parsed, ...prev]);
-        setSelectedRecipe(parsed);
-        setPreviewImage(null);
-        setExtractedRecipe(null);
+      if (newRecipes.length === 1) {
+        // Single recipe → go straight to its detail page
+        setSelectedRecipe(newRecipes[0]);
         setView("detail");
-      } catch (err) {
-        setError(err.message || "Extraction failed. Please try again.");
-      } finally {
-        setExtracting(false);
-        setTranslating(false);
-        setGeneratingImage(false);
+      } else {
+        // Multiple recipes → land on the library so the user sees them all
+        setView("library");
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setError(err.message || "Extraction failed. Please try again.");
+    } finally {
+      setExtracting(false);
+      setTranslating(false);
+      setGeneratingImage(false);
+    }
   }, []);
 
   const exportCookidoo = (recipe) => {
@@ -466,6 +507,8 @@ export default function RecipeApp() {
     </div>
   );
 
+  const isProcessing = extracting || translating || generatingImage;
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -507,10 +550,10 @@ export default function RecipeApp() {
           <p style={{ color: "#c8a97e", fontSize: 13, marginTop: 2, fontStyle: "italic" }}>Your personal recipe library</p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setView("library"); setPreviewImage(null); setExtractedRecipe(null); }}>
+          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}>
             📚 Library ({recipes.length})
           </button>
-          <button className="btn-primary" onClick={() => { setView("digitize"); setPreviewImage(null); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
+          <button className="btn-primary" onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
             + Digitize Recipe
           </button>
         </div>
@@ -577,38 +620,77 @@ export default function RecipeApp() {
         {view === "digitize" && (
           <div className="fade-in" style={{ maxWidth: 720, margin: "0 auto" }}>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, marginBottom: 6 }}>Digitize a Recipe</h2>
-            <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph a cookbook page — Claude will extract and translate the full recipe automatically.</p>
+            <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph one or more cookbook pages — Claude will detect how many recipes are present and extract them all automatically.</p>
 
-            {!previewImage && (
+            {/* Drop zone — shown only before any images are selected */}
+            {previewImages.length === 0 && (
               <div
                 className="drop-zone"
                 onClick={() => fileRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("active"); }}
                 onDragLeave={e => e.currentTarget.classList.remove("active")}
-                onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("active"); handleImageUpload(e.dataTransfer.files[0]); }}
+                onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("active"); handleImagesUpload(e.dataTransfer.files); }}
               >
                 <div style={{ fontSize: 48, marginBottom: 12 }}>📸</div>
-                <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Drop a photo here</p>
-                <p style={{ color: "#9a8060", fontSize: 15 }}>or click to choose from your files</p>
+                <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Drop photos here</p>
+                <p style={{ color: "#9a8060", fontSize: 15 }}>or click to choose — select multiple to scan several recipes at once</p>
                 <p style={{ color: "#b8a888", fontSize: 13, marginTop: 12 }}>JPG, PNG, HEIC — works with any cookbook page</p>
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleImageUpload(e.target.files[0])} />
+                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => handleImagesUpload(e.target.files)} />
               </div>
             )}
 
-            {previewImage && (
-              <div style={{ maxWidth: 480, margin: "0 auto" }}>
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleImageUpload(e.target.files[0])} />
-                <img src={previewImage} alt="Cookbook page" style={{ width: "100%", borderRadius: 8, border: "1px solid #e8ddc8" }} />
+            {/* Preview + processing state */}
+            {previewImages.length > 0 && (
+              <div style={{ maxWidth: 560, margin: "0 auto" }}>
+                {/* Hidden file input for "Try different" */}
+                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => handleImagesUpload(e.target.files)} />
 
-                {(extracting || translating || generatingImage) && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 24, gap: 12, color: "#9a8060" }}>
-                    <div className="spinner" />
-                    <p style={{ fontSize: 16, fontStyle: "italic" }}>
-                      {extracting ? "Reading your recipe…" : "Translating & generating image…"}
-                    </p>
+                {/* Image previews — single full-width or multi-image grid */}
+                {previewImages.length === 1 ? (
+                  <img
+                    src={previewImages[0]}
+                    alt="Cookbook page"
+                    style={{ width: "100%", borderRadius: 8, border: "1px solid #e8ddc8" }}
+                  />
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                    {previewImages.map((src, i) => (
+                      <div key={i} style={{ position: "relative" }}>
+                        <img
+                          src={src}
+                          alt={`Page ${i + 1}`}
+                          style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 6, border: "1px solid #e8ddc8", display: "block" }}
+                        />
+                        <span style={{
+                          position: "absolute", bottom: 6, right: 6,
+                          background: "#2c2416cc", color: "#faf7f2",
+                          fontSize: 11, padding: "2px 6px", borderRadius: 4,
+                        }}>
+                          {i + 1}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
+                {/* Spinner + status message */}
+                {isProcessing && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 24, gap: 12, color: "#9a8060" }}>
+                    <div className="spinner" />
+                    <p style={{ fontSize: 16, fontStyle: "italic" }}>
+                      {extracting
+                        ? `Analysing ${previewImages.length > 1 ? `${previewImages.length} images` : "your recipe"}…`
+                        : "Translating & generating images…"}
+                    </p>
+                    {previewImages.length > 1 && extracting && (
+                      <p style={{ fontSize: 13, color: "#b8a888" }}>
+                        Claude is determining how many recipes are present across all images
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Error state */}
                 {error && (
                   <div style={{ background: "#fdf0e8", border: "1px solid #e8c4a0", borderRadius: 8, padding: 20, marginTop: 16 }}>
                     <p style={{ color: "#8f4a1e", fontWeight: 600, marginBottom: 8 }}>Extraction failed</p>
@@ -616,20 +698,32 @@ export default function RecipeApp() {
                   </div>
                 )}
 
-                {!extracting && !translating && !generatingImage && (
-                  <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={() => { setPreviewImage(null); setExtractedRecipe(null); setError(null); setViewLang("en"); fileRef.current?.click(); }}>
-                    Try different photo
+                {/* Reset / retry button — only shown when not processing */}
+                {!isProcessing && (
+                  <button
+                    className="btn-ghost"
+                    style={{ marginTop: 12, width: "100%" }}
+                    onClick={() => {
+                      setPreviewImages([]);
+                      setExtractedRecipe(null);
+                      setError(null);
+                      setViewLang("en");
+                      fileRef.current?.click();
+                    }}
+                  >
+                    Try different photo{previewImages.length > 1 ? "s" : ""}
                   </button>
                 )}
               </div>
             )}
 
-            {!previewImage && (
+            {/* Info cards — shown only before any images are selected */}
+            {previewImages.length === 0 && (
               <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                 {[
-                  { icon: "📸", title: "Photograph", text: "Take a clear photo of any cookbook page" },
-                  { icon: "🤖", title: "AI Extracts", text: "Claude reads and structures the full recipe" },
-                  { icon: "🌐", title: "3 Languages", text: "Auto-translated into English, German & French" },
+                  { icon: "📸", title: "Photograph", text: "Take one or more photos of any cookbook page" },
+                  { icon: "🤖", title: "AI Extracts", text: "Claude reads all images and detects each distinct recipe automatically" },
+                  { icon: "🌐", title: "3 Languages", text: "Every recipe is auto-translated into English, German & French" },
                 ].map(step => (
                   <div key={step.title} style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 8, padding: 20, textAlign: "center" }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>{step.icon}</div>
