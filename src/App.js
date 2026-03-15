@@ -487,10 +487,8 @@ const RecipeLoadingScreen = ({ extracting, translating, generatingImage, message
             </div>
             {i < steps.length - 1 && (
               <div
+                className="stepper-connector"
                 style={{
-                  width: 56,
-                  height: 2,
-                  marginBottom: 20,
                   background: steps[i + 1].done || steps[i + 1].active
                     ? "linear-gradient(90deg, #b5622a, #c8a97e)"
                     : step.active
@@ -754,7 +752,7 @@ export default function RecipeApp() {
   };
 
   const LangTabs = ({ hasTranslations }) => (
-    <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+    <div className="lang-tabs-row">
       {LANGUAGES.map(l => {
         const available = l.code === "en" || hasTranslations;
         return (
@@ -825,32 +823,67 @@ export default function RecipeApp() {
         @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
         @keyframes float { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 1; } 80% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-120px) scale(1.1); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+
+        /* ── Base layout classes (desktop defaults) ── */
+        .site-header { padding: 14px 32px; gap: 10px; }
+        .header-buttons { display: flex; gap: 12px; flex-shrink: 0; }
+        .main-content { padding: 32px 24px; }
+        .library-top { flex-direction: row; align-items: flex-start; }
+        .info-grid { grid-template-columns: repeat(3, 1fr); }
+        .detail-img { height: 300px; overflow: hidden; }
+        .detail-body { padding: 28px 32px; }
+        .detail-title { font-size: 34px; line-height: 1.2; font-family: 'Playfair Display', serif; }
+        .detail-grid { grid-template-columns: 1fr 1.6fr; gap: 32px; display: grid; }
+        .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; padding-top: 20px; border-top: 1px solid #f0ebe0; }
+        .stepper-connector { width: 56px; height: 2px; margin-bottom: 20px; flex-shrink: 0; }
+        .lang-tabs-row { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+
+        /* ── Mobile overrides (≤ 640 px) ── */
+        @media (max-width: 640px) {
+          .site-header { padding: 10px 14px; flex-wrap: wrap; }
+          .header-buttons { width: 100%; justify-content: space-between; }
+          .main-content { padding: 16px 14px; }
+          .drop-zone { padding: 28px 16px; }
+          .library-top { flex-direction: column; align-items: stretch; gap: 10px; }
+          .library-top .input { max-width: 100% !important; }
+          .info-grid { grid-template-columns: 1fr; }
+          .detail-grid { grid-template-columns: 1fr; gap: 20px; }
+          .detail-img { height: 200px; }
+          .detail-body { padding: 18px 14px; }
+          .detail-title { font-size: 24px; }
+          .action-row { flex-direction: column; }
+          .btn-primary { padding: 12px 20px; font-size: 15px; }
+          .btn-ghost { padding: 10px 16px; font-size: 14px; }
+          .nav-tab { padding: 8px 12px; font-size: 14px; }
+          .tag { font-size: 12px; padding: 2px 7px; }
+          .stepper-connector { width: 24px; }
+        }
       `}</style>
 
       {/* Header */}
-      <header style={{ background: "#2c2416", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <header className="site-header" style={{ background: "#2c2416", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "#faf7f2", fontWeight: 900, letterSpacing: "-0.5px" }}>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#faf7f2", fontWeight: 900, letterSpacing: "-0.5px" }}>
             Ma Cuisine
           </h1>
           <p style={{ color: "#c8a97e", fontSize: 13, marginTop: 2, fontStyle: "italic" }}>Your personal recipe library</p>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}>
+        <div className="header-buttons">
+          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e", whiteSpace: "nowrap" }} onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}>
             📚 Library ({recipes.length})
           </button>
-          <button className="btn-primary" onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
-            + Digitize Recipe
+          <button className="btn-primary" style={{ whiteSpace: "nowrap" }} onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
+            + Digitize
           </button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
+      <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto" }}>
 
         {/* LIBRARY VIEW */}
         {view === "library" && (
           <div className="fade-in">
-            <div style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center" }}>
+            <div className="library-top" style={{ display: "flex", gap: 12, marginBottom: 24 }}>
               <input className="input" placeholder="Search recipes, ingredients, tags…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {categories.map(cat => (
@@ -998,7 +1031,7 @@ export default function RecipeApp() {
 
             {/* Info cards — shown only before any images are selected */}
             {previewImages.length === 0 && (
-              <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+              <div className="info-grid" style={{ marginTop: 40, display: "grid", gap: 16 }}>
                 {[
                   { icon: "📸", title: "Photograph", text: "Take one or more photos of any cookbook page" },
                   { icon: "🤖", title: "AI Extracts", text: "Claude reads all images and detects each distinct recipe automatically" },
@@ -1028,13 +1061,13 @@ export default function RecipeApp() {
 
               <div style={{ background: "#fff", border: "1px solid #e8ddc8", borderRadius: 12, overflow: "hidden" }}>
                 {(selectedRecipe.generatedImageUrl || r.imageUrl) && (
-                  <div style={{ height: 300, overflow: "hidden" }}>
+                  <div className="detail-img">
                     <img src={selectedRecipe.generatedImageUrl || r.imageUrl} alt={r.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
                 )}
-                <div style={{ padding: "28px 32px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 34, lineHeight: 1.2 }}>{r.title}</h1>
+                <div className="detail-body">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
+                    <h1 className="detail-title">{r.title}</h1>
                     {r.thermomixAdapted && <span style={{ fontSize: 24 }} title="Thermomix adapted">🌀</span>}
                   </div>
                   {r.source && <p style={{ color: "#9a8060", fontSize: 14, marginBottom: 12, fontStyle: "italic" }}>From: {r.source}</p>}
@@ -1072,7 +1105,7 @@ export default function RecipeApp() {
                     </div>
                   )}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32 }}>
+                  <div className="detail-grid">
                     <div>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Ingredients</h3>
                       <ul style={{ listStyle: "none" }}>
@@ -1126,7 +1159,7 @@ export default function RecipeApp() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 10, marginTop: 28, paddingTop: 20, borderTop: "1px solid #f0ebe0" }}>
+                  <div className="action-row">
                     <button className="btn-primary" onClick={() => exportCookidoo(r)} style={{ flex: 1 }}>
                       {exportedRecipe === selectedRecipe.id ? "✓ Downloaded!" : "🌀 Export for Cookidoo"}
                     </button>
