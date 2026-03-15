@@ -15,31 +15,51 @@ const API_HEADERS = {
   "anthropic-dangerous-direct-browser-access": "true",
 };
 
-const extractRecipePrompt = () => `You are an expert culinary editor. Extract the recipe from this cookbook page photo and return it as a JSON object ONLY — no markdown fences, no explanation, just raw JSON.
+const extractRecipePrompt = () => `You are an expert culinary editor and recipe designer. Your goal is to take the recipe in this image and reformat it into a highly structured, user-friendly format optimized for home cooks. Return a JSON object ONLY — no markdown fences, no explanation, just raw JSON.
 
-Apply these editorial standards as you extract:
+Apply every rule below strictly:
 
-INGREDIENTS — Mise en Place style: Integrate the preparation state directly into each ingredient so the cook knows exactly what to do before starting. Use the "note" field for all prep instructions (e.g. "finely diced", "room temperature", "toasted and ground", "cut into 2 cm cubes"). Never leave a vague entry like "1 onion" when you can write "1 medium onion, finely diced".
+1. METADATA
+- "title": exact recipe name.
+- "source": name of the cookbook, website, or author if visible (as plain text, not a hashtag). null if not visible.
+- "tags": 2–4 relevant category tags as an array (e.g. ["Seafood", "Starter", "Italian"]). Include the source name as the first tag if visible.
+- "difficulty": Easy = simple techniques, under 45 min active time. Medium = moderate skill or multi-step. Hard = advanced technique, long process, or precision required.
+- "prepTime" / "cookTime": integers in minutes.
+- "servings": base yield as an integer.
+- "category": one of Main | Dessert | Starter | Soup | Bread | Salad | Snack | Drink | Other.
+- "cuisine": country or regional cuisine (e.g. "Italian", "French", "Middle Eastern").
+- "description": 1–2 sentences summarising the dish appealingly.
 
-STEPS — Single-action focus: Break dense paragraphs into numbered steps with 1–2 actions each. Extract exact times into "duration" (minutes, number only) and temperatures into "temp" (Celsius, number only) as separate fields — do NOT repeat them in the instruction text. Describe visual/textural doneness cues clearly (e.g. "until golden brown and fragrant", "until the sauce coats the back of a spoon").
+2. NUTRITION (per serving)
+Estimate if not provided: "calories" (kcal), "protein" (g), "fat" (g), "carbs" (g). Use standard nutritional databases.
 
-NUTRITION: If not shown, estimate per-serving macros from standard nutritional databases.
+3. EQUIPMENT
+First, extract any explicitly listed equipment from the source. If no list exists, infer from the method. Include only tools and appliances (e.g. "fine-mesh sieve", "stand mixer", "23×33 cm baking dish"). Exclude serving dishes and cutlery.
 
-EQUIPMENT: Read the full method and list every specific tool, appliance, or vessel required (e.g. "fine-mesh sieve", "23×33 cm baking dish", "stand mixer").
+4. INGREDIENTS — Mise en Place
+Integrate the preparation state directly into each ingredient line so the cook knows exactly what to do before turning on the stove. Use the "note" field for all prep states (e.g. "finely diced", "room temperature", "toasted and ground", "cut into 2 cm cubes"). Never write a vague entry like "1 onion" when you can write "1 medium onion, finely diced".
 
-DIFFICULTY: Easy = straightforward techniques, under 45 min active time. Medium = moderate skill or multi-step. Hard = advanced techniques, long process, or precision required.
+5. STEPS — Rewrite the method with these rules:
+a) Numbered, single-action focus: maximum 1–2 actions per step. Break dense paragraphs down.
+b) Integrate floating data: if the source uses callout boxes or floating UI elements for times or temperatures alongside the text, weave those values directly into the sentence.
+c) Bold key variables: wrap exact times, temperatures, and visual/textural doneness cues in double asterisks so they render as bold (e.g. "Bake for **35 minutes** at **180°C** until **golden brown**").
+d) Also extract the primary time into "duration" (integer minutes) and temperature into "temp" (integer Celsius) as separate fields for UI display. null if not applicable.
+e) Do NOT include background information, tips, or warnings inside steps — move those to "notes".
+
+6. NOTES
+Collect all chef's tips, variations, resting times, storage advice, and warnings here. Keep the active steps clean.
 
 Return this exact JSON structure:
 {
   "title": "Recipe name",
-  "description": "1–2 sentence description of the dish",
+  "description": "1–2 sentence description",
   "difficulty": "Easy | Medium | Hard",
   "servings": 4,
   "prepTime": 15,
   "cookTime": 30,
   "category": "Main | Dessert | Starter | Soup | Bread | Salad | Snack | Drink | Other",
-  "cuisine": "Italian | French | Asian | Middle Eastern | etc.",
-  "tags": ["tag1", "tag2"],
+  "cuisine": "Italian",
+  "tags": ["SourceName", "Seafood", "Starter"],
   "source": "Book title or author if visible, else null",
   "equipment": ["large skillet", "fine-mesh sieve"],
   "nutrition": { "calories": 350, "protein": 25, "fat": 12, "carbs": 30 },
@@ -47,10 +67,10 @@ Return this exact JSON structure:
     { "amount": "200", "unit": "g", "name": "ingredient", "note": "finely diced" }
   ],
   "steps": [
-    { "step": 1, "instruction": "Single clear action", "duration": null, "temp": null }
+    { "step": 1, "instruction": "Heat **2 tbsp** of olive oil in a large skillet over **medium-high heat**.", "duration": null, "temp": null }
   ],
   "thermomixAdapted": false,
-  "notes": "Chef tips, variations, or serving suggestions"
+  "notes": "Resting time, tips, variations, storage advice."
 }
 
 Rules: return ONLY valid JSON. Use null for any unknown field. "thermomixAdapted": true only if you rewrite steps for Thermomix.`;
@@ -89,6 +109,14 @@ const callAPI = async (messages, maxTokens = 2000) => {
 
 const translateRecipe = (recipe, targetLang) =>
   callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }]);
+
+const renderBold = (text) => {
+  if (!text) return null;
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} style={{ color: "#3a2810" }}>{part}</strong> : part
+  );
+};
 
 const generateRecipeImage = async (recipe) => {
   const directions = ["top-right", "top-left", "bottom-right", "bottom-left"];
@@ -616,7 +644,7 @@ export default function RecipeApp() {
                           <li key={i} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
                             <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
                             <div>
-                              <p style={{ fontSize: 15, lineHeight: 1.6 }}>{step.instruction}</p>
+                              <p style={{ fontSize: 15, lineHeight: 1.6 }}>{renderBold(step.instruction)}</p>
                               {(step.duration || step.temp) && (
                                 <p style={{ fontSize: 13, color: "#9a8060", marginTop: 4 }}>
                                   {step.duration && `⏱ ${step.duration}min`} {step.temp && `🌡 ${step.temp}°C`}
