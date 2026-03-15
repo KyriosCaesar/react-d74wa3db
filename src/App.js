@@ -248,7 +248,7 @@ function BookCover({ src }) {
       src={src}
       alt="Cookbook"
       style={{
-        height: 220,
+        height: 300,
         width: "auto",
         display: "block",
         filter: "drop-shadow(0px 40px 80px rgba(0,0,0,0.18)) drop-shadow(0px 12px 32px rgba(0,0,0,0.09))",
@@ -350,7 +350,7 @@ function EmptyStateHero({ onFiles }) {
           </motion.div>
 
           {/* ── Books scene — stacked at center, then fly apart on scroll ── */}
-          <div style={{ position: "relative", width: "100%", height: 300, zIndex: 2 }}>
+          <div style={{ position: "relative", width: "100%", height: 400, zIndex: 2 }}>
             {/* Ground shadow beneath all books */}
             <div style={{
               position: "absolute", bottom: 0, left: "50%",
