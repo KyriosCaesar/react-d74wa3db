@@ -384,7 +384,7 @@ export default function RecipeApp() {
         { type: "text", text: extractRecipesPrompt() },
       ];
 
-      const result = await callAPI([{ role: "user", content }]);
+      const result = await callAPI([{ role: "user", content }], Math.max(4000, files.length * 3000));
       // Claude returns an array; guard against it returning a plain object
       const recipesArray = Array.isArray(result) ? result : [result];
 
