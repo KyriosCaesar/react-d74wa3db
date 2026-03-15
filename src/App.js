@@ -338,7 +338,7 @@ function EmptyStateHero({ onFiles }) {
             transition: TR,
           } : {})}
         >
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(22px, 5vw, 50px)", color: "#2c2416", lineHeight: 1.2, maxWidth: 540, margin: "0 auto" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 500, letterSpacing: "-0.025em", color: "#2c2416", lineHeight: 1.15, maxWidth: 540, margin: "0 auto" }}>
             What will you cook<br />from your shelf today?
           </h2>
           {!isMobile && (
@@ -1074,8 +1074,8 @@ export default function RecipeApp() {
               background: viewLang === l.code ? "#b5622a" : "transparent",
               color: viewLang === l.code ? "#faf7f2" : available ? "#7a6040" : "#c8bba8",
               cursor: available ? "pointer" : "not-allowed",
-              fontFamily: "'Crimson Text', serif",
-              fontSize: 14,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
               fontWeight: viewLang === l.code ? 600 : 400,
               transition: "all 0.2s",
             }}
@@ -1099,27 +1099,27 @@ export default function RecipeApp() {
     <div style={{
       minHeight: "100vh",
       background: "#faf7f2",
-      fontFamily: "'Crimson Text', Georgia, serif",
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       color: "#2c2416",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;700;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f0ebe0; }
         ::-webkit-scrollbar-thumb { background: #c8a97e; border-radius: 3px; }
         .card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(44,36,22,0.12); }
-        .btn-primary { background: #b5622a; color: #faf7f2; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-family: 'Crimson Text', serif; font-size: 16px; font-weight: 600; transition: background 0.2s; }
+        .btn-primary { background: #b5622a; color: #faf7f2; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; transition: background 0.2s; }
         .btn-primary:hover { background: #8f4a1e; }
-        .btn-ghost { background: transparent; border: 1.5px solid #c8a97e; color: #2c2416; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-family: 'Crimson Text', serif; font-size: 15px; transition: all 0.2s; }
+        .btn-ghost { background: transparent; border: 1.5px solid #c8a97e; color: #2c2416; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; transition: all 0.2s; }
         .btn-ghost:hover { background: #c8a97e22; }
         .drop-zone { border: 2px dashed #c8a97e; border-radius: 8px; padding: 48px; text-align: center; cursor: pointer; transition: all 0.2s; background: #fdf9f3; }
         .drop-zone:hover, .drop-zone.active { border-color: #b5622a; background: #fdf4eb; }
         .tag { display: inline-block; background: #e8ddc8; color: #5a4020; padding: 2px 10px; border-radius: 20px; font-size: 13px; margin: 2px; }
-        .nav-tab { padding: 8px 20px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 15px; color: #7a6040; transition: all 0.2s; }
+        .nav-tab { padding: 8px 20px; cursor: pointer; border-bottom: 2px solid transparent; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: #7a6040; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; }
         .nav-tab.active { border-bottom-color: #b5622a; color: #b5622a; font-weight: 600; }
-        .input { width: 100%; padding: 10px 14px; border: 1.5px solid #d4c5a9; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 16px; background: #fdf9f3; color: #2c2416; outline: none; }
+        .input { width: 100%; padding: 10px 14px; border: 1.5px solid #d4c5a9; border-radius: 4px; font-family: 'Inter', sans-serif; font-size: 15px; background: #fdf9f3; color: #2c2416; outline: none; }
         .input:focus { border-color: #b5622a; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinner { width: 32px; height: 32px; border: 3px solid #e8ddc8; border-top-color: #b5622a; border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -1171,9 +1171,9 @@ export default function RecipeApp() {
           .detail-body { padding: 18px 14px; }
           .detail-title { font-size: 24px; }
           .action-row { flex-direction: column; }
-          .btn-primary { padding: 12px 20px; font-size: 15px; }
-          .btn-ghost { padding: 10px 16px; font-size: 14px; }
-          .nav-tab { padding: 8px 12px; font-size: 14px; }
+          .btn-primary { padding: 12px 20px; font-size: 13px; }
+          .btn-ghost { padding: 10px 16px; font-size: 13px; }
+          .nav-tab { padding: 8px 12px; font-size: 11px; }
           .tag { font-size: 12px; padding: 2px 7px; }
           .stepper-connector { width: 24px; }
         }
@@ -1191,7 +1191,7 @@ export default function RecipeApp() {
         {/* Logo + name — absolutely centred */}
         <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 9, pointerEvents: "none" }}>
           <img src="/favicon.png" alt="" style={{ height: 30, width: "auto" }} />
-          <span style={{ fontWeight: 700, fontSize: 20, color: "#1a1208", fontFamily: "system-ui, -apple-system, sans-serif", letterSpacing: "-0.3px" }}>
+          <span style={{ fontWeight: 700, fontSize: 20, color: "#1a1208", fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: "-0.4px" }}>
             Cookable
           </span>
         </div>
@@ -1215,7 +1215,7 @@ export default function RecipeApp() {
         </button>
         <button
           className="btn-primary"
-          style={{ fontSize: 14, padding: "7px 18px" }}
+          style={{ fontSize: 11, padding: "7px 20px", fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}
           onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}
         >
           + Digitize
@@ -1235,7 +1235,7 @@ export default function RecipeApp() {
                   <input className="input" placeholder="Search recipes, ingredients, tags…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {categories.map(cat => (
-                      <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", borderColor: activeCategory === cat ? "#b5622a" : "#d4c5a9", background: activeCategory === cat ? "#b5622a" : "transparent", color: activeCategory === cat ? "#faf7f2" : "#7a6040", cursor: "pointer", fontSize: 14, fontFamily: "'Crimson Text', serif", transition: "all 0.2s" }}>
+                      <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", borderColor: activeCategory === cat ? "#b5622a" : "#d4c5a9", background: activeCategory === cat ? "#b5622a" : "transparent", color: activeCategory === cat ? "#faf7f2" : "#7a6040", cursor: "pointer", fontSize: 13, fontFamily: "'Inter', sans-serif", transition: "all 0.2s" }}>
                         {cat}
                       </button>
                     ))}
@@ -1581,7 +1581,7 @@ export default function RecipeApp() {
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); exitCook(); }}
-                style={{ background: "none", border: "1px solid #2c2010", color: "#5a4020", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontFamily: "'Crimson Text', serif" }}
+                style={{ background: "none", border: "1px solid #2c2010", color: "#5a4020", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontFamily: "'Inter', sans-serif", letterSpacing: "0.03em" }}
               >
                 ✕ Exit
               </button>
@@ -1673,7 +1673,7 @@ export default function RecipeApp() {
                   </p>
                   <button
                     onClick={(e) => { e.stopPropagation(); exitCook(); }}
-                    style={{ background: "#b5622a", color: "#faf7f2", border: "none", padding: "14px 36px", borderRadius: 6, fontSize: 18, fontFamily: "'Crimson Text', serif", cursor: "pointer", fontWeight: 600 }}
+                    style={{ background: "#b5622a", color: "#faf7f2", border: "none", padding: "14px 36px", borderRadius: 6, fontSize: 14, fontFamily: "'Inter', sans-serif", cursor: "pointer", fontWeight: 600, letterSpacing: "0.01em" }}
                   >
                     Back to recipe
                   </button>
