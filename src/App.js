@@ -273,9 +273,10 @@ function EmptyStateHero({ onFiles }) {
   }, []);
 
   // Desktop scroll-linked transforms — 3 books × 3 props (x, y, rotate)
-  const b0x = useTransform(sp, [0, 1], [  0, -310]); const b0y = useTransform(sp, [0, 1], [0,  30]); const b0r = useTransform(sp, [0, 1], [ -3, -22]);
-  const b1x = useTransform(sp, [0, 1], [  0,    0]); const b1y = useTransform(sp, [0, 1], [0, -20]); const b1r = useTransform(sp, [0, 1], [ -1,  -2]);
-  const b2x = useTransform(sp, [0, 1], [  0,  310]); const b2y = useTransform(sp, [0, 1], [0,  30]); const b2r = useTransform(sp, [0, 1], [  2,  22]);
+  // ∩ shape: center rises, sides drop — opening faces down
+  const b0x = useTransform(sp, [0, 1], [  0, -290]); const b0y = useTransform(sp, [0, 1], [0,  90]); const b0r = useTransform(sp, [0, 1], [ -3, -20]);
+  const b1x = useTransform(sp, [0, 1], [  0,    0]); const b1y = useTransform(sp, [0, 1], [0, -70]); const b1r = useTransform(sp, [0, 1], [ -1,  -2]);
+  const b2x = useTransform(sp, [0, 1], [  0,  290]); const b2y = useTransform(sp, [0, 1], [0,  90]); const b2r = useTransform(sp, [0, 1], [  2,  20]);
 
   // Headline + scroll-hint + drop-zone envelope
   const dzOp = useTransform(sp, [0.3, 0.8], [0, 1]);
@@ -300,9 +301,9 @@ function EmptyStateHero({ onFiles }) {
 
   // Per-book config: desktop MotionValues, mobile scatter target, initial rotation, stacking z
   const bookDefs = [
-    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -120, y: 25, r: -18 }, ir: -3,   z: 2 },
-    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x:    0, y: -25, r:  -1 }, ir: -0.5, z: 8 },
-    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  120, y: 25, r:  18 }, ir:  2,   z: 2 },
+    { ds: { x: b0x, y: b0y, rotate: b0r }, mob: { x: -120, y:  70, r: -18 }, ir: -3,   z: 2 },
+    { ds: { x: b1x, y: b1y, rotate: b1r }, mob: { x:    0, y: -70, r:  -1 }, ir: -0.5, z: 8 },
+    { ds: { x: b2x, y: b2y, rotate: b2r }, mob: { x:  120, y:  70, r:  18 }, ir:  2,   z: 2 },
   ];
 
   return (
@@ -351,7 +352,7 @@ function EmptyStateHero({ onFiles }) {
         </motion.div>
 
         {/* Books scene — all 8 stacked at center, then fly apart */}
-        <div style={{ position: "relative", width: "100%", height: 240 }}>
+        <div style={{ position: "relative", width: "100%", height: 300 }}>
           {/* Ground shadow beneath all books */}
           <div style={{
             position: "absolute", bottom: 0, left: "50%",
