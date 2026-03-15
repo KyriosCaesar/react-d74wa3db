@@ -417,6 +417,155 @@ const FadingTextLoader = ({ messages, isActive }) => {
   );
 };
 
+const LOADING_PARTICLES = [
+  { emoji: "🌿", left: "7%",  delay: "0s",   dur: "3.6s" },
+  { emoji: "✨", left: "25%", delay: "1.2s", dur: "2.9s" },
+  { emoji: "🌾", left: "50%", delay: "0.6s", dur: "3.9s" },
+  { emoji: "🫙", left: "68%", delay: "2.0s", dur: "3.2s" },
+  { emoji: "⭐", left: "83%", delay: "0.3s", dur: "2.7s" },
+  { emoji: "🍋", left: "38%", delay: "2.5s", dur: "3.3s" },
+];
+
+const RecipeLoadingScreen = ({ extracting, translating, generatingImage, messages }) => {
+  const isActive = extracting || translating || generatingImage;
+  if (!isActive) return null;
+
+  const mainIcon = extracting ? "📖" : translating ? "🌐" : "🎨";
+  const steps = [
+    { icon: "📖", label: "Reading",    active: extracting,       done: !extracting },
+    { icon: "🌐", label: "Translating", active: translating,     done: !translating && !extracting },
+    { icon: "🎨", label: "Composing",   active: generatingImage, done: false },
+  ];
+
+  return (
+    <div style={{ textAlign: "center", padding: "28px 0 0", position: "relative", minHeight: 280, overflow: "hidden" }}>
+
+      {/* Floating food particles */}
+      {LOADING_PARTICLES.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: p.left,
+            fontSize: 20,
+            animation: `float ${p.dur} ${p.delay} ease-in infinite`,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          {p.emoji}
+        </span>
+      ))}
+
+      {/* Phase stepper */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
+        {steps.map((step, i) => (
+          <React.Fragment key={step.label}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: step.done ? "#b5622a" : step.active ? "#fdf4eb" : "#f0e8d8",
+                  border: `2px solid ${step.active || step.done ? "#b5622a" : "#d4c5a9"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: step.done ? 18 : 20,
+                  color: step.done ? "#fff" : "inherit",
+                  boxShadow: step.active ? "0 0 0 4px #b5622a33" : "none",
+                  transition: "all 0.4s ease",
+                }}
+              >
+                {step.done ? "✓" : step.icon}
+              </div>
+              <span style={{ fontSize: 12, color: step.active ? "#b5622a" : "#9a8060", fontWeight: step.active ? 600 : 400 }}>
+                {step.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div
+                style={{
+                  width: 56,
+                  height: 2,
+                  marginBottom: 20,
+                  background: steps[i + 1].done || steps[i + 1].active
+                    ? "linear-gradient(90deg, #b5622a, #c8a97e)"
+                    : step.active
+                      ? "linear-gradient(90deg, #b5622a 25%, #e8ddc8 75%)"
+                      : "#e8ddc8",
+                  backgroundSize: "200% 100%",
+                  animation: step.active ? "shimmer 1.4s linear infinite" : "none",
+                }}
+              />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Pulsing icon with ripple rings */}
+      <div style={{ position: "relative", display: "inline-block", marginBottom: 24 }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: -16,
+            borderRadius: "50%",
+            border: "2px solid #b5622a66",
+            animation: "ripple 2s ease-out infinite",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: -16,
+            borderRadius: "50%",
+            border: "2px solid #b5622a44",
+            animation: "ripple 2s ease-out 0.9s infinite",
+          }}
+        />
+        <div
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #fdf4eb, #f0e0c8)",
+            border: "2px solid #d4a878",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 40,
+            animation: "pulse 1.8s ease-in-out infinite",
+            boxShadow: "0 4px 20px #b5622a22",
+          }}
+        >
+          {mainIcon}
+        </div>
+      </div>
+
+      {/* Bouncing dots */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 4 }}>
+        {[0, 1, 2].map(i => (
+          <div
+            key={i}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#b5622a",
+              animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Fading contextual messages */}
+      <FadingTextLoader messages={messages} isActive={isActive} />
+    </div>
+  );
+};
+
 const getRecipeInLang = (recipe, lang) => {
   if (lang === "en" || !recipe.translations?.[lang]) return recipe;
   const t = recipe.translations[lang];
@@ -671,6 +820,11 @@ export default function RecipeApp() {
         .spinner { width: 32px; height: 32px; border: 3px solid #e8ddc8; border-top-color: #b5622a; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: fadeIn 0.4s ease forwards; }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+        @keyframes ripple { 0% { transform: scale(0.8); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
+        @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
+        @keyframes float { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 20% { opacity: 1; } 80% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-120px) scale(1.1); } }
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
       `}</style>
 
       {/* Header */}
@@ -777,8 +931,8 @@ export default function RecipeApp() {
                 {/* Hidden file input for "Try different" */}
                 <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => handleImagesUpload(e.target.files)} />
 
-                {/* Image previews — single full-width or multi-image grid */}
-                {previewImages.length === 1 ? (
+                {/* Image previews — hidden while processing to make room for the loading screen */}
+                {!isProcessing && (previewImages.length === 1 ? (
                   <img
                     src={previewImages[0]}
                     alt="Cookbook page"
@@ -803,14 +957,16 @@ export default function RecipeApp() {
                       </div>
                     ))}
                   </div>
-                )}
+                ))}
 
-                {/* Fading contextual messages while processing */}
-                <FadingTextLoader
+                {/* Animated loading screen while processing */}
+                <RecipeLoadingScreen
+                  extracting={extracting}
+                  translating={translating}
+                  generatingImage={generatingImage}
                   messages={extracting
                     ? (contextualMessages ?? EXTRACTION_MESSAGES)
                     : (contextualMessages ?? TRANSLATION_MESSAGES)}
-                  isActive={isProcessing}
                 />
 
                 {/* Error state */}
