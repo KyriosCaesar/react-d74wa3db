@@ -15,36 +15,51 @@ const API_HEADERS = {
   "anthropic-dangerous-direct-browser-access": "true",
 };
 
-const extractRecipePrompt = (imageBase64) => `You are a professional recipe digitizer. Extract the complete recipe from this cookbook page photo and return it as a JSON object ONLY — no markdown, no explanation, just raw JSON.
+const extractRecipePrompt = () => `You are an expert culinary editor. Extract the recipe from this cookbook page photo and return it as a JSON object ONLY — no markdown fences, no explanation, just raw JSON.
 
-The JSON must follow this exact structure:
+Apply these editorial standards as you extract:
+
+INGREDIENTS — Mise en Place style: Integrate the preparation state directly into each ingredient so the cook knows exactly what to do before starting. Use the "note" field for all prep instructions (e.g. "finely diced", "room temperature", "toasted and ground", "cut into 2 cm cubes"). Never leave a vague entry like "1 onion" when you can write "1 medium onion, finely diced".
+
+STEPS — Single-action focus: Break dense paragraphs into numbered steps with 1–2 actions each. Extract exact times into "duration" (minutes, number only) and temperatures into "temp" (Celsius, number only) as separate fields — do NOT repeat them in the instruction text. Describe visual/textural doneness cues clearly (e.g. "until golden brown and fragrant", "until the sauce coats the back of a spoon").
+
+NUTRITION: If not shown, estimate per-serving macros from standard nutritional databases.
+
+EQUIPMENT: Read the full method and list every specific tool, appliance, or vessel required (e.g. "fine-mesh sieve", "23×33 cm baking dish", "stand mixer").
+
+DIFFICULTY: Easy = straightforward techniques, under 45 min active time. Medium = moderate skill or multi-step. Hard = advanced techniques, long process, or precision required.
+
+Return this exact JSON structure:
 {
   "title": "Recipe name",
-  "description": "1-2 sentence description",
+  "description": "1–2 sentence description of the dish",
+  "difficulty": "Easy | Medium | Hard",
   "servings": 4,
   "prepTime": 15,
   "cookTime": 30,
-  "category": "Main / Dessert / Starter / Soup / Bread / Salad / Snack / Drink / Other",
+  "category": "Main | Dessert | Starter | Soup | Bread | Salad | Snack | Drink | Other",
+  "cuisine": "Italian | French | Asian | Middle Eastern | etc.",
   "tags": ["tag1", "tag2"],
+  "source": "Book title or author if visible, else null",
+  "equipment": ["large skillet", "fine-mesh sieve"],
+  "nutrition": { "calories": 350, "protein": 25, "fat": 12, "carbs": 30 },
   "ingredients": [
-    { "amount": "200", "unit": "g", "name": "ingredient name", "note": "optional prep note" }
+    { "amount": "200", "unit": "g", "name": "ingredient", "note": "finely diced" }
   ],
   "steps": [
-    { "step": 1, "instruction": "Step description", "duration": null, "temp": null }
+    { "step": 1, "instruction": "Single clear action", "duration": null, "temp": null }
   ],
   "thermomixAdapted": false,
-  "source": "Book title if visible",
-  "notes": "Any chef tips or variations"
+  "notes": "Chef tips, variations, or serving suggestions"
 }
 
-For thermomixAdapted: set to true if you adapt steps for Thermomix (e.g. combine chopping/mixing into TM steps).
-If a field is unknown, use null.`;
+Rules: return ONLY valid JSON. Use null for any unknown field. "thermomixAdapted": true only if you rewrite steps for Thermomix.`;
 
 const translateRecipePrompt = (recipe, targetLang) => {
   const langName = targetLang === "de" ? "German" : "French";
   return `Translate the following recipe fields to ${langName}. Return ONLY a JSON object — no markdown, no explanation, just raw JSON.
 
-Translate: title, description, ingredient names and notes, step instructions, notes, tags, and category.
+Translate: title, description, ingredient names and notes, step instructions, notes, tags, category, cuisine, and equipment items.
 Do NOT translate: amounts, units, numbers, temperatures, or proper nouns like brand names.
 
 Input JSON:
@@ -56,6 +71,8 @@ ${JSON.stringify({
     notes: recipe.notes ?? null,
     tags: recipe.tags ?? [],
     category: recipe.category ?? null,
+    cuisine: recipe.cuisine ?? null,
+    equipment: recipe.equipment ?? [],
   }, null, 2)}`;
 };
 
@@ -172,7 +189,7 @@ export default function RecipeApp() {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
-            { type: "text", text: extractRecipePrompt(base64) },
+            { type: "text", text: extractRecipePrompt() },
           ],
         }]);
 
@@ -536,12 +553,37 @@ export default function RecipeApp() {
                   {r.source && <p style={{ color: "#9a8060", fontSize: 14, marginBottom: 12, fontStyle: "italic" }}>From: {r.source}</p>}
                   <p style={{ fontSize: 17, color: "#5a4020", lineHeight: 1.6, marginBottom: 20 }}>{r.description}</p>
 
-                  <div style={{ display: "flex", gap: 20, fontSize: 15, color: "#7a6040", padding: "16px 0", borderTop: "1px solid #f0ebe0", borderBottom: "1px solid #f0ebe0", marginBottom: 24 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 15, color: "#7a6040", padding: "16px 0", borderTop: "1px solid #f0ebe0", borderBottom: "1px solid #f0ebe0", marginBottom: r.nutrition ? 12 : 24, alignItems: "center" }}>
                     {r.servings && <span>👥 {r.servings} servings</span>}
                     {r.prepTime && <span>⏱ {r.prepTime}min prep</span>}
                     {r.cookTime && <span>🔥 {r.cookTime}min cook</span>}
                     {r.category && <span>🏷 {r.category}</span>}
+                    {r.difficulty && (
+                      <span style={{
+                        background: r.difficulty === "Easy" ? "#e8f5e9" : r.difficulty === "Medium" ? "#fff8e1" : "#fdecea",
+                        color: r.difficulty === "Easy" ? "#2e7d32" : r.difficulty === "Medium" ? "#f57f17" : "#c62828",
+                        borderRadius: 20, padding: "2px 10px", fontSize: 13, fontWeight: 600
+                      }}>
+                        {r.difficulty === "Easy" ? "🟢" : r.difficulty === "Medium" ? "🟡" : "🔴"} {r.difficulty}
+                      </span>
+                    )}
                   </div>
+                  {r.nutrition && (
+                    <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
+                      {[
+                        { label: "Calories", value: r.nutrition.calories, unit: "kcal", color: "#b5622a" },
+                        { label: "Protein",  value: r.nutrition.protein,  unit: "g",    color: "#4a7c59" },
+                        { label: "Fat",      value: r.nutrition.fat,      unit: "g",    color: "#7a6040" },
+                        { label: "Carbs",    value: r.nutrition.carbs,    unit: "g",    color: "#5a6080" },
+                      ].map(n => n.value != null && (
+                        <div key={n.label} style={{ background: "#faf7f2", border: "1px solid #e8ddc8", borderRadius: 8, padding: "8px 14px", textAlign: "center", minWidth: 70 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: n.color }}>{n.value}<span style={{ fontSize: 11, fontWeight: 400 }}>{n.unit}</span></div>
+                          <div style={{ fontSize: 11, color: "#9a8060", textTransform: "uppercase", letterSpacing: "0.4px" }}>{n.label}</div>
+                        </div>
+                      ))}
+                      <div style={{ fontSize: 11, color: "#b8a888", alignSelf: "flex-end", paddingBottom: 4 }}>per serving · estimated</div>
+                    </div>
+                  )}
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32 }}>
                     <div>
@@ -554,6 +596,18 @@ export default function RecipeApp() {
                           </li>
                         ))}
                       </ul>
+                      {r.equipment?.length > 0 && (
+                        <div style={{ marginTop: 24 }}>
+                          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, marginBottom: 10 }}>Equipment</h3>
+                          <ul style={{ listStyle: "none" }}>
+                            {r.equipment.map((item, i) => (
+                              <li key={i} style={{ padding: "5px 0", borderBottom: "1px solid #f5f0e8", fontSize: 14, color: "#5a4020", display: "flex", gap: 8, alignItems: "center" }}>
+                                <span style={{ color: "#b5622a", fontSize: 16 }}>🍳</span> {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Method</h3>
