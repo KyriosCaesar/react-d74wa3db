@@ -157,6 +157,45 @@ const callAPI = async (messages, maxTokens = 2000, model = "claude-opus-4-5") =>
 const translateRecipe = (recipe, targetLang) =>
   callAPI([{ role: "user", content: translateRecipePrompt(recipe, targetLang) }], 1500, "claude-haiku-4-5");
 
+// Glances at the uploaded images and generates 6 witty, recipe-specific
+// loading messages. Runs in parallel with the main opus extraction call —
+// haiku typically finishes in 2–5 s, well before opus is done.
+const generateContextualExtractionMessages = async (fileData) => {
+  const content = [
+    ...fileData.map(f => ({
+      type: "image",
+      source: { type: "base64", media_type: f.mediaType, data: f.base64 },
+    })),
+    {
+      type: "text",
+      text: `Glance at these cookbook or recipe images and write 6 short, witty one-liner messages that will display while an AI extracts the recipe.
+
+Be specific — reference the dish, key ingredients, cooking technique, or cuisine. Use wordplay, culinary puns, and gentle humour. Keep each message under 75 characters.
+
+Return ONLY a JSON array of 6 strings. No markdown, no explanation.`,
+    },
+  ];
+  return callAPI([{ role: "user", content }], 400, "claude-haiku-4-5");
+};
+
+// Once we know the recipe title(s), generates 6 quips about translating
+// and AI food photography. Runs in parallel with the real translation calls.
+const generateContextualTranslationMessages = async (recipes) => {
+  const titles = recipes.map(r => r.title).join(" and ");
+  return callAPI(
+    [{
+      role: "user",
+      content: `Write 6 short, witty one-liner loading messages for this process: translating "${titles}" into German and French, and generating an AI food photograph.
+
+Mix language or translation jokes with food puns. Keep each message under 75 characters.
+
+Return ONLY a JSON array of 6 strings. No markdown, no explanation.`,
+    }],
+    300,
+    "claude-haiku-4-5"
+  );
+};
+
 const renderBold = (text) => {
   if (!text) return null;
   const parts = text.split(/\*\*(.*?)\*\*/g);
@@ -414,6 +453,7 @@ export default function RecipeApp() {
   const [error, setError] = useState(null);
   const [exportedRecipe, setExportedRecipe] = useState(null);
   const [viewLang, setViewLang] = useState("en");
+  const [contextualMessages, setContextualMessages] = useState(null);
   const fileRef = useRef();
 
   const categories = ["All", ...new Set(recipes.map(r => r.category).filter(Boolean))];
@@ -451,7 +491,14 @@ export default function RecipeApp() {
     );
 
     setPreviewImages(fileData.map(f => f.dataUrl));
+    setContextualMessages(null);
     setExtracting(true);
+
+    // Fire a cheap haiku call in parallel to generate image-specific loading messages.
+    // Haiku finishes in ~2–5 s; the generic fallback array covers the gap until it responds.
+    generateContextualExtractionMessages(fileData)
+      .then(msgs => { if (Array.isArray(msgs)) setContextualMessages(msgs); })
+      .catch(() => {});
 
     try {
       // Build a single Claude message containing ALL images + the extraction prompt
@@ -476,8 +523,14 @@ export default function RecipeApp() {
       }));
 
       setExtracting(false);
+      setContextualMessages(null);
       setTranslating(true);
       setGeneratingImage(true);
+
+      // Generate translation-phase messages specific to the extracted recipe title(s)
+      generateContextualTranslationMessages(newRecipes)
+        .then(msgs => { if (Array.isArray(msgs)) setContextualMessages(msgs); })
+        .catch(() => {});
 
       // Fan out: translations + recipe image gen for EVERY recipe, all in parallel
       await Promise.all(newRecipes.map(async (recipe) => {
@@ -754,7 +807,9 @@ export default function RecipeApp() {
 
                 {/* Fading contextual messages while processing */}
                 <FadingTextLoader
-                  messages={extracting ? EXTRACTION_MESSAGES : TRANSLATION_MESSAGES}
+                  messages={extracting
+                    ? (contextualMessages ?? EXTRACTION_MESSAGES)
+                    : (contextualMessages ?? TRANSLATION_MESSAGES)}
                   isActive={isProcessing}
                 />
 
