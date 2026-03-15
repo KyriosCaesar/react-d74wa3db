@@ -5,8 +5,34 @@ import './style.css';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  { auth: { storageKey: "cookable-auth", lock: (_name, _timeout, fn) => fn() } }
 );
+
+// ── Supabase recipe persistence ───────────────────────────────────────────────
+const saveRecipeToSupabase = async (recipe, userId) => {
+  const { data, error } = await supabase
+    .from("recipes")
+    .upsert({ id: String(recipe.id), user_id: userId, data: recipe }, { onConflict: "id" })
+    .select();
+  if (error) console.error("SUPABASE SAVE ERROR:", error.message, error.details, error.hint, error);
+  else console.log("SUPABASE SAVE OK:", data);
+};
+
+const loadRecipesFromSupabase = async (userId) => {
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("data")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) { console.error("Failed to load recipes:", error); return []; }
+  return data?.map(r => r.data) ?? [];
+};
+
+const deleteRecipeFromSupabase = async (id) => {
+  const { error } = await supabase.from("recipes").delete().eq("id", String(id));
+  if (error) console.error("Failed to delete recipe:", error);
+};
 
 const SAMPLE_RECIPES = [];
 
@@ -320,6 +346,7 @@ function EmptyStateHero({ onFiles }) {
           marginLeft: "calc(50% - 50vw)",
           marginTop: 0,
           position: "relative",
+          background: "linear-gradient(to bottom, #FDFBF1 0%, #2D241E 100%)",
         }}
       >
         {/* Saffron atmosphere orb — floats behind books */}
@@ -431,7 +458,7 @@ function EmptyStateHero({ onFiles }) {
         </div>
       </div>
 
-      {/* ── Upload / digitize section — inherits body atmosphere gradient ── */}
+      {/* ── Upload / digitize section — solid espresso bg continues hero fade ── */}
       <div style={{
         width: "100vw",
         marginLeft: "calc(50% - 50vw)",
@@ -442,6 +469,7 @@ function EmptyStateHero({ onFiles }) {
         alignItems: "center",
         position: "relative",
         overflow: "visible",
+        background: "#2D241E",
       }}>
 
         {/* Sage atmosphere orb — cool accent near upload card */}
@@ -776,200 +804,112 @@ const EquipmentThumb = ({ name, size = 60, delay = 0 }) =>
   <ItemThumb name={name} fetchFn={generateEquipmentImage}
     size={size} spinnerSize={Math.round(size * 0.3)} delay={delay} />;
 
-// Continuously cycles through `messages`, fading each one in and out,
-// until `isActive` becomes false.
-const FadingTextLoader = ({ messages, isActive }) => {
+// Typewriter: types each message, pauses, erases, then moves to the next
+const TypewriterLoader = ({ messages, isActive }) => {
   const [index, setIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
+  const [displayed, setDisplayed] = useState("");
+  const [phase, setPhase] = useState("typing"); // typing | pausing | erasing
 
-  // Reset to the first message whenever the message set changes (phase switch)
-  useEffect(() => {
-    setIndex(0);
-    setVisible(true);
-  }, [messages]);
-
-  // After each message has been fully visible for ~3.2 s, start fading it out
   useEffect(() => {
     if (!isActive) return;
-    const fadeOut = setTimeout(() => setVisible(false), 3200);
-    return () => clearTimeout(fadeOut);
-  }, [index, isActive]);
+    const msg = messages[index];
+    if (phase === "typing") {
+      if (displayed.length < msg.length) {
+        const t = setTimeout(() => setDisplayed(msg.slice(0, displayed.length + 1)), 48);
+        return () => clearTimeout(t);
+      } else {
+        const t = setTimeout(() => setPhase("erasing"), 3800);
+        return () => clearTimeout(t);
+      }
+    }
+    if (phase === "erasing") {
+      if (displayed.length > 0) {
+        const t = setTimeout(() => setDisplayed(d => d.slice(0, -1)), 28);
+        return () => clearTimeout(t);
+      } else {
+        setIndex(i => (i + 1) % messages.length);
+        setPhase("typing");
+      }
+    }
+  }, [isActive, displayed, phase, index, messages]);
 
-  // Once the fade-out transition (0.5 s) is done, advance to the next message
+  // Reset when message set changes (phase switch)
   useEffect(() => {
-    if (!isActive || visible) return;
-    const advance = setTimeout(() => {
-      setIndex(i => (i + 1) % messages.length);
-      setVisible(true);
-    }, 500);
-    return () => clearTimeout(advance);
-  }, [visible, isActive, messages.length]);
+    setIndex(0);
+    setDisplayed("");
+    setPhase("typing");
+  }, [messages]);
 
   if (!isActive) return null;
 
   return (
-    <div style={{ textAlign: "center", marginTop: 32, minHeight: 56 }}>
-      <p
-        style={{
-          fontSize: 16,
-          fontStyle: "italic",
-          color: "#9a8060",
-          maxWidth: 440,
-          margin: "0 auto",
-          lineHeight: 1.6,
-          opacity: visible ? 1 : 0,
-          transition: "opacity 0.5s ease",
-        }}
-      >
-        {messages[index]}
+    <div style={{ textAlign: "center", marginBottom: 32, minHeight: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{
+        fontSize: 26,
+        fontFamily: "'Playfair Display', serif",
+        color: "#4a3520",
+        maxWidth: 600,
+        margin: "0 auto",
+        lineHeight: 1.4,
+      }}>
+        {displayed}
+        <span style={{ display: "inline-block", width: 2, height: "1.1em", background: "#4a3520", verticalAlign: "text-bottom", marginLeft: 2, animation: "twBlink 1s step-end infinite" }} />
       </p>
+      <style>{`@keyframes twBlink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
     </div>
   );
 };
 
-const LOADING_PARTICLES = [
-  { emoji: "🌿", left: "7%",  delay: "0s",   dur: "3.6s" },
-  { emoji: "✨", left: "25%", delay: "1.2s", dur: "2.9s" },
-  { emoji: "🌾", left: "50%", delay: "0.6s", dur: "3.9s" },
-  { emoji: "🫙", left: "68%", delay: "2.0s", dur: "3.2s" },
-  { emoji: "⭐", left: "83%", delay: "0.3s", dur: "2.7s" },
-  { emoji: "🍋", left: "38%", delay: "2.5s", dur: "3.3s" },
-];
-
 const RecipeLoadingScreen = ({ extracting, translating, generatingImage, messages }) => {
   const isActive = extracting || translating || generatingImage;
+  const videoRef = useRef(null);
+  const rafRef = useRef(null);
+
+  // Ping-pong: play forward, then rewind frame-by-frame, then repeat
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const rewind = () => {
+      video.currentTime = Math.max(0, video.currentTime - 0.04);
+      if (video.currentTime > 0) {
+        rafRef.current = requestAnimationFrame(rewind);
+      } else {
+        video.play();
+      }
+    };
+
+    const handleEnded = () => { rafRef.current = requestAnimationFrame(rewind); };
+    video.addEventListener("ended", handleEnded);
+    return () => {
+      video.removeEventListener("ended", handleEnded);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   if (!isActive) return null;
 
-  const mainIcon = extracting ? "📖" : translating ? "🌐" : "🎨";
-  const steps = [
-    { icon: "📖", label: "Reading",    active: extracting,       done: !extracting },
-    { icon: "🌐", label: "Translating", active: translating,     done: !translating && !extracting },
-    { icon: "🎨", label: "Composing",   active: generatingImage, done: false },
-  ];
-
   return (
-    <div style={{ textAlign: "center", padding: "28px 0 0", position: "relative", minHeight: 280, overflow: "hidden" }}>
-
-      {/* Floating food particles */}
-      {LOADING_PARTICLES.map((p, i) => (
-        <span
-          key={i}
+    <div style={{ textAlign: "center", padding: "40px 0 0" }}>
+      <TypewriterLoader messages={messages} isActive={isActive} />
+      {/* Overflow-crop to hide baked-in black bars */}
+      <div style={{ width: 200, height: 200, overflow: "hidden", position: "relative", margin: "0 auto", borderRadius: 20, background: "transparent" }}>
+        <video
+          ref={videoRef}
+          src="/loading.mp4"
+          autoPlay
+          muted
+          playsInline
           style={{
             position: "absolute",
-            bottom: 0,
-            left: p.left,
-            fontSize: 20,
-            animation: `float ${p.dur} ${p.delay} ease-in infinite`,
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        >
-          {p.emoji}
-        </span>
-      ))}
-
-      {/* Phase stepper */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
-        {steps.map((step, i) => (
-          <React.Fragment key={step.label}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  background: step.done ? "#b5622a" : step.active ? "#fdf4eb" : "#f0e8d8",
-                  border: `2px solid ${step.active || step.done ? "#b5622a" : "#d4c5a9"}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: step.done ? 18 : 20,
-                  color: step.done ? "#fff" : "inherit",
-                  boxShadow: step.active ? "0 0 0 4px #b5622a33" : "none",
-                  transition: "all 0.4s ease",
-                }}
-              >
-                {step.done ? "✓" : step.icon}
-              </div>
-              <span style={{ fontSize: 12, color: step.active ? "#b5622a" : "#9a8060", fontWeight: step.active ? 600 : 400 }}>
-                {step.label}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div
-                className="stepper-connector"
-                style={{
-                  background: steps[i + 1].done || steps[i + 1].active
-                    ? "linear-gradient(90deg, #b5622a, #c8a97e)"
-                    : step.active
-                      ? "linear-gradient(90deg, #b5622a 25%, #e8ddc8 75%)"
-                      : "#e8ddc8",
-                  backgroundSize: "200% 100%",
-                  animation: step.active ? "shimmer 1.4s linear infinite" : "none",
-                }}
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Pulsing icon with ripple rings */}
-      <div style={{ position: "relative", display: "inline-block", marginBottom: 24 }}>
-        <div
-          style={{
-            position: "absolute",
-            inset: -16,
-            borderRadius: "50%",
-            border: "2px solid #b5622a66",
-            animation: "ripple 2s ease-out infinite",
+            width: "195%",
+            height: "auto",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
           }}
         />
-        <div
-          style={{
-            position: "absolute",
-            inset: -16,
-            borderRadius: "50%",
-            border: "2px solid #b5622a44",
-            animation: "ripple 2s ease-out 0.9s infinite",
-          }}
-        />
-        <div
-          style={{
-            width: 88,
-            height: 88,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #fdf4eb, #f0e0c8)",
-            border: "2px solid #d4a878",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 40,
-            animation: "pulse 1.8s ease-in-out infinite",
-            boxShadow: "0 4px 20px #b5622a22",
-          }}
-        >
-          {mainIcon}
-        </div>
       </div>
-
-      {/* Bouncing dots */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 4 }}>
-        {[0, 1, 2].map(i => (
-          <div
-            key={i}
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#b5622a",
-              animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Fading contextual messages */}
-      <FadingTextLoader messages={messages} isActive={isActive} />
     </div>
   );
 };
@@ -1013,7 +953,39 @@ export default function RecipeApp() {
   const [contextualMessages, setContextualMessages] = useState(null);
   const [cookMode, setCookMode]   = useState(null);  // recipe object | null
   const [cookStep, setCookStep]   = useState(-1);    // -1=intro, 0..N-1=steps, N=done
+  const [user, setUser] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNavMenu, setShowNavMenu] = useState(false);
+  const userRef = useRef(null); // stable ref for async callbacks
   const fileRef = useRef();
+
+  // Auth: restore session on mount, listen for changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null;
+      userRef.current = u;
+      setUser(u);
+      if (u) loadRecipesFromSupabase(u.id).then(setRecipes);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      userRef.current = u;
+      setUser(u);
+      if (u) {
+        const saved = await loadRecipesFromSupabase(u.id);
+        setRecipes(saved);
+        setShowLoginModal(false);
+        setShowUserMenu(false);
+        setShowNavMenu(false);
+      } else {
+        setRecipes([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cook mode keyboard navigation
   useEffect(() => {
@@ -1123,6 +1095,9 @@ export default function RecipeApp() {
       }));
 
       setRecipes(prev => [...newRecipes, ...prev]);
+      if (userRef.current) {
+        newRecipes.forEach(r => saveRecipeToSupabase(r, userRef.current.id));
+      }
       setPreviewImages([]);
       setExtractedRecipe(null);
 
@@ -1178,6 +1153,7 @@ export default function RecipeApp() {
 
   const deleteRecipe = (id) => {
     setRecipes(prev => prev.filter(r => r.id !== id));
+    if (userRef.current) deleteRecipeFromSupabase(id);
     if (selectedRecipe?.id === id) { setSelectedRecipe(null); setView("library"); }
   };
 
@@ -1306,37 +1282,139 @@ export default function RecipeApp() {
 
       {/* ── Top bar ── */}
       <header className="site-header" style={{ background: "rgba(253,251,241,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
-        {/* Hamburger */}
-        <button style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}>
-          <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
-          <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
-          <span style={{ display: "block", width: 15, height: 2, background: "#2c2416", borderRadius: 2 }} />
-        </button>
+        {/* Hamburger + dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowNavMenu(m => !m)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}
+          >
+            <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
+            <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
+            <span style={{ display: "block", width: 15, height: 2, background: "#2c2416", borderRadius: 2 }} />
+          </button>
+
+          {showNavMenu && (
+            <div style={{ position: "absolute", top: 46, left: 0, background: "#FDFBF1", borderRadius: 12, boxShadow: "0 8px 32px rgba(44,36,22,0.15)", border: "1px solid #e8ddc8", minWidth: 180, zIndex: 200, overflow: "hidden" }}>
+              {user && (
+                <button
+                  onClick={() => { setView("library"); setShowNavMenu(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  style={{ width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", cursor: "pointer", fontSize: 14, color: "#2c2416", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 10 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f4ede0"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" fill="#b8a888"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="#b8a888"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="#b8a888"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="#b8a888"/></svg>
+                  My Library
+                </button>
+              )}
+              {!user && (
+                <button
+                  onClick={() => { setShowLoginModal(true); setShowNavMenu(false); }}
+                  style={{ width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", cursor: "pointer", fontSize: 14, color: "#2c2416", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 10 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f4ede0"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" fill="#b8a888"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#b8a888" strokeWidth="2" strokeLinecap="round"/></svg>
+                  Sign in
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Logo + name — absolutely centred */}
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 9, pointerEvents: "none" }}>
-          <img src="/favicon.png" alt="" style={{ height: 30, width: "auto" }} />
+        <div
+          onClick={() => { setView("library"); setSelectedRecipe(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
+        >
+          {!(extracting || translating || generatingImage) && <img src="/favicon.png" alt="" style={{ height: 30, width: "auto" }} />}
           <span style={{ fontWeight: 700, fontSize: 20, color: "#1a1208", fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: "-0.4px" }}>
             Cookable
           </span>
         </div>
 
-        {/* Profile placeholder */}
-        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#e8ddc8", border: "2px solid #d4c5a9", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="8" r="4" fill="#b8a888" />
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#b8a888" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+        {/* Profile button */}
+        <div style={{ position: "relative" }}>
+          <div
+            onClick={() => user ? setShowUserMenu(m => !m) : setShowLoginModal(true)}
+            style={{ width: 38, height: 38, borderRadius: "50%", background: "#e8ddc8", border: "2px solid #d4c5a9", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, overflow: "hidden" }}
+          >
+            {user?.user_metadata?.avatar_url ? (
+              <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="4" fill="#b8a888" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#b8a888" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            )}
+          </div>
+
+          {/* User dropdown */}
+          {showUserMenu && user && (
+            <div style={{ position: "absolute", top: 46, right: 0, background: "#FDFBF1", borderRadius: 12, boxShadow: "0 8px 32px rgba(44,36,22,0.15)", border: "1px solid #e8ddc8", minWidth: 200, zIndex: 200, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #e8ddc8" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "#2c2416", fontFamily: "'Inter', sans-serif" }}>{user.user_metadata?.full_name || "Chef"}</div>
+                <div style={{ fontSize: 12, color: "#9a8060", marginTop: 2 }}>{user.email}</div>
+              </div>
+              <button
+                onClick={() => { supabase.auth.signOut(); setShowUserMenu(false); }}
+                style={{ width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", cursor: "pointer", fontSize: 14, color: "#7a6040", fontFamily: "'Inter', sans-serif" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f4ede0"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
+      {/* Login modal */}
+      {showLoginModal && (
+        <div
+          onClick={() => setShowLoginModal(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(44,36,22,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: "#FDFBF1", borderRadius: 20, padding: "40px 36px", maxWidth: 360, width: "calc(100% - 48px)", textAlign: "center", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#f4ede0", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img src="/favicon.png" alt="" style={{ height: 32 }} />
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: "#2c2416", margin: "0 0 8px" }}>Sign in to Cookable</h2>
+            <p style={{ fontSize: 14, color: "#9a8060", margin: "0 0 28px", lineHeight: 1.6 }}>Save your recipes and access them from any device.</p>
+            <button
+              onClick={() => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "13px 20px", borderRadius: 10, border: "1.5px solid #d4c5a9", background: "#fff", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#2c2416", fontFamily: "'Inter', sans-serif", transition: "background 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f9f4ed"}
+              onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+              Continue with Google
+            </button>
+          </div>
+        </div>
+      )}
 
-      <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto", ...(view === "library" && recipes.length === 0 && { padding: 0 }) }}>
+
+      {view === "digitize" && <div style={{ position: "fixed", inset: 0, background: "#fff", zIndex: -1 }} />}
+      <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto", ...(view === "library" && recipes.length === 0 && !user && { padding: 0 }) }}>
 
         {/* LIBRARY VIEW */}
         {view === "library" && (
           <div className="fade-in">
-            {recipes.length === 0 ? (
+            {recipes.length === 0 && user ? (
+              /* Logged in, no recipes yet */
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "70vh", textAlign: "center", padding: "0 24px" }}>
+                <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style={{ marginBottom: 20, opacity: 0.35 }}>
+                  <rect x="8" y="10" width="26" height="36" rx="3" stroke="#7a6040" strokeWidth="2.5"/>
+                  <rect x="14" y="10" width="26" height="36" rx="3" stroke="#7a6040" strokeWidth="2.5" fill="#f4ede0"/>
+                  <path d="M20 22h14M20 28h10" stroke="#b8a888" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#2c2416", marginBottom: 10 }}>Your library is empty</h2>
+                <p style={{ color: "#9a8060", fontSize: 15, maxWidth: 340, lineHeight: 1.6, marginBottom: 28 }}>Photograph a recipe page and Claude will digitize it into your personal cookbook.</p>
+                <button className="btn-primary" onClick={() => setView("digitize")} style={{ padding: "12px 28px", fontSize: 15 }}>
+                  Digitize your first recipe
+                </button>
+              </div>
+            ) : recipes.length === 0 ? (
               <EmptyStateHero onFiles={(files) => { handleImagesUpload(files); setView("digitize"); }} />
             ) : (
               <>
@@ -1388,8 +1466,10 @@ export default function RecipeApp() {
         {/* DIGITIZE VIEW */}
         {view === "digitize" && (
           <div className="fade-in" style={{ maxWidth: 720, margin: "0 auto" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, marginBottom: 6 }}>Digitize a Recipe</h2>
-            <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph one or more cookbook pages — Claude will detect how many recipes are present and extract them all automatically.</p>
+            {!(extracting || translating || generatingImage) && <>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, marginBottom: 6 }}>Digitize a Recipe</h2>
+              <p style={{ color: "#7a6040", marginBottom: 28, fontSize: 16 }}>Photograph one or more cookbook pages — Claude will detect how many recipes are present and extract them all automatically.</p>
+            </>}
 
             {/* Drop zone — shown only before any images are selected */}
             {previewImages.length === 0 && (
