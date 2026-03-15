@@ -109,7 +109,7 @@ export default function RecipeDetailPage() {
 
             {/* Ingredients + Method */}
             <div className="detail-grid">
-              <IngredientList ingredients={r.ingredients} equipment={r.equipment} />
+              <IngredientList ingredients={r.ingredients} equipment={r.equipment} originalIngredients={recipe.ingredients} />
               <MethodList steps={r.steps} recipe={r} notes={r.notes} />
             </div>
 

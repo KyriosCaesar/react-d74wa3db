@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { removeBackground } from "../utils/recipe";
 import {
   fetchCachedImage,
@@ -46,9 +46,8 @@ export function ItemThumb({ name, fetchFn, amount, unit, size = 44, spinnerSize 
 
 // Generates + caches an ingredient image.
 const fetchIngredientImage = async (name, amount, unit) => {
-  const safeAmount = (amount ?? "").toString().trim();
-  const safeUnit = (unit ?? "").toString().trim().toLowerCase();
-  const key = `ing:${name.toLowerCase().trim()}:${safeAmount}:${safeUnit}`;
+  // Key is ingredient name only — same ingredient looks the same regardless of amount
+  const key = `ing:${name.toLowerCase().trim()}`;
 
   const cached = await fetchCachedImage(key);
   if (cached) return cached;
@@ -71,9 +70,19 @@ const fetchEquipmentImage = async (name) => {
   return url;
 };
 
-export const IngredientThumb = ({ name, amount, unit, size = 72, delay = 0 }) =>
-  <ItemThumb name={name} amount={amount} unit={unit} fetchFn={fetchIngredientImage}
-    size={size} spinnerSize={Math.round(size * 0.28)} delay={delay} />;
+export const IngredientThumb = ({ name, amount, unit, englishName, size = 72, delay = 0 }) => {
+  // Use the English ingredient name for the cache key so DE/FR thumbnails
+  // hit the same cache entry as the English version.
+  const cacheName = englishName ?? name;
+  const fetchFn = useCallback(
+    (_n, a, u) => fetchIngredientImage(cacheName, a, u),
+    [cacheName]
+  );
+  return (
+    <ItemThumb name={name} amount={amount} unit={unit} fetchFn={fetchFn}
+      size={size} spinnerSize={Math.round(size * 0.28)} delay={delay} />
+  );
+};
 
 export const EquipmentThumb = ({ name, size = 60, delay = 0 }) =>
   <ItemThumb name={name} fetchFn={fetchEquipmentImage}

@@ -1,14 +1,14 @@
 import React from "react";
 import { IngredientThumb, EquipmentThumb } from "../ItemThumb";
 
-export default function IngredientList({ ingredients, equipment }) {
+export default function IngredientList({ ingredients, equipment, originalIngredients }) {
   return (
     <div>
       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Ingredients</h3>
       <ul style={{ listStyle: "none" }}>
         {ingredients?.map((ing, i) => (
           <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 10, alignItems: "center" }}>
-            <IngredientThumb name={ing.name} amount={ing.amount} unit={ing.unit} delay={i * 300} />
+            <IngredientThumb name={ing.name} englishName={originalIngredients?.[i]?.name} amount={ing.amount} unit={ing.unit} delay={i * 300} />
             <div style={{ flex: 1 }}>
               <span style={{ fontWeight: 600, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
               <span> {ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
