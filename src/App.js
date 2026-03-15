@@ -244,18 +244,16 @@ const BOOK_IMAGES = [
 
 function BookCover({ src }) {
   return (
-    <div style={{
-      width: 130, height: 190,
-      borderRadius: "2px 7px 7px 2px",
-      boxShadow: "6px 8px 28px rgba(0,0,0,0.42), -2px 0 10px rgba(0,0,0,0.18) inset",
-      overflow: "hidden", flexShrink: 0, position: "relative",
-    }}>
-      <img src={src} alt="Cookbook" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-      {/* spine shadow */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 8, background: "linear-gradient(to right, rgba(0,0,0,0.32), transparent)", pointerEvents: "none" }} />
-      {/* gloss highlight */}
-      <div style={{ position: "absolute", top: 0, left: "28%", right: 0, height: "40%", background: "linear-gradient(180deg, rgba(255,255,255,0.11) 0%, transparent 100%)", pointerEvents: "none" }} />
-    </div>
+    <img
+      src={src}
+      alt="Cookbook"
+      style={{
+        height: 185,
+        width: "auto",
+        display: "block",
+        filter: "drop-shadow(4px 10px 26px rgba(0,0,0,0.48)) drop-shadow(-2px 0 6px rgba(0,0,0,0.22))",
+      }}
+    />
   );
 }
 
@@ -369,8 +367,6 @@ function EmptyStateHero({ onFiles }) {
                 position: "absolute",
                 left: "50%",
                 top: "50%",
-                marginLeft: -65,
-                marginTop: -95,
                 zIndex: bd.z,
                 ...(isMobile ? {} : bd.ds),
               }}
@@ -382,7 +378,9 @@ function EmptyStateHero({ onFiles }) {
                 transition: { ...TR, delay: i * 0.05 },
               } : {})}
             >
-              <BookCover src={selectedImages[i]} />
+              <div style={{ transform: "translate(-50%, -50%)" }}>
+                <BookCover src={selectedImages[i]} />
+              </div>
             </motion.div>
           ))}
         </div>
