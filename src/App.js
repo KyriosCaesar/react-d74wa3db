@@ -156,21 +156,23 @@ const generateRecipeImage = async (recipe) => {
   return b64 ? `data:image/png;base64,${b64}` : null;
 };
 
-// --- Ingredient image cache (Supabase) ---
-const generateIngredientImage = async (name) => {
-  const key = name.toLowerCase().trim();
-
-  // 1. Check Supabase cache first
-  const { data: cached } = await supabase
+// --- Shared Supabase + Gemini image cache ---
+const fetchCachedImage = async (cacheKey) => {
+  const { data } = await supabase
     .from("ingredient_images")
     .select("image_data")
-    .eq("name", key)
+    .eq("name", cacheKey)
     .maybeSingle();
+  return data?.image_data ?? null;
+};
 
-  if (cached?.image_data) return cached.image_data;
+const storeCachedImage = async (cacheKey, url) => {
+  await supabase
+    .from("ingredient_images")
+    .upsert({ name: cacheKey, image_data: url }, { onConflict: "name" });
+};
 
-  // 2. Generate with Gemini
-  const prompt = `Minimalist, clean, top-down food photography of ${name} on a pure white background. Single ingredient only, no text, no labels, soft natural lighting, cookbook style.`;
+const generateGeminiImage = async (prompt) => {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
     {
@@ -184,19 +186,31 @@ const generateIngredientImage = async (name) => {
   );
   const data = await res.json();
   const b64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-  if (!b64) return null;
+  return b64 ? `data:image/png;base64,${b64}` : null;
+};
 
-  const url = `data:image/png;base64,${b64}`;
-
-  // 3. Persist to Supabase (upsert — safe if called concurrently)
-  await supabase
-    .from("ingredient_images")
-    .upsert({ name: key, image_data: url }, { onConflict: "name" });
-
+const generateIngredientImage = async (name) => {
+  const key = `ing:${name.toLowerCase().trim()}`;
+  const cached = await fetchCachedImage(key);
+  if (cached) return cached;
+  const prompt = `Minimalist, clean, top-down food photography of ${name} on a pure white background. Single ingredient only, no text, no labels, soft natural lighting, cookbook style.`;
+  const url = await generateGeminiImage(prompt);
+  if (url) await storeCachedImage(key, url);
   return url;
 };
 
-const IngredientThumb = ({ name, delay = 0 }) => {
+const generateEquipmentImage = async (name) => {
+  const key = `eq:${name.toLowerCase().trim()}`;
+  const cached = await fetchCachedImage(key);
+  if (cached) return cached;
+  const prompt = `Minimalist, clean product photograph of a ${name} kitchen tool on a pure white background. Single item only, no text, no labels, soft studio lighting, cookbook style.`;
+  const url = await generateGeminiImage(prompt);
+  if (url) await storeCachedImage(key, url);
+  return url;
+};
+
+// Shared thumbnail component — images blend into page via mix-blend-mode: multiply
+const ItemThumb = ({ name, fetchFn, size = 44, spinnerSize = 16, delay = 0 }) => {
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -204,29 +218,29 @@ const IngredientThumb = ({ name, delay = 0 }) => {
     if (src) return;
     let alive = true;
     const timer = setTimeout(() => {
-      generateIngredientImage(name)
+      fetchFn(name)
         .then(url => { if (alive) { setSrc(url || null); setLoading(false); } })
         .catch(() => { if (alive) setLoading(false); });
     }, delay);
     return () => { alive = false; clearTimeout(timer); };
-  }, [name, delay]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [name, delay, fetchFn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{
-      width: 44, height: 44, borderRadius: 8, overflow: "hidden",
-      background: "#f5f0e8", flexShrink: 0, border: "1px solid #e8ddc8",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
+    <div style={{ width: size, height: size, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {src ? (
-        <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain", mixBlendMode: "multiply" }} />
       ) : loading ? (
-        <div style={{ width: 16, height: 16, border: "2px solid #e8ddc8", borderTopColor: "#b5622a", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      ) : (
-        <span style={{ fontSize: 18 }}>🥄</span>
-      )}
+        <div style={{ width: spinnerSize, height: spinnerSize, border: "2px solid #e8ddc8", borderTopColor: "#b5622a", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      ) : null}
     </div>
   );
 };
+
+const IngredientThumb = ({ name, delay = 0 }) =>
+  <ItemThumb name={name} fetchFn={generateIngredientImage} size={48} spinnerSize={16} delay={delay} />;
+
+const EquipmentThumb = ({ name, delay = 0 }) =>
+  <ItemThumb name={name} fetchFn={generateEquipmentImage} size={40} spinnerSize={14} delay={delay} />;
 
 const getRecipeInLang = (recipe, lang) => {
   if (lang === "en" || !recipe.translations?.[lang]) return recipe;
@@ -704,7 +718,8 @@ export default function RecipeApp() {
                           <ul style={{ listStyle: "none" }}>
                             {r.equipment.map((item, i) => (
                               <li key={i} style={{ padding: "5px 0", borderBottom: "1px solid #f5f0e8", fontSize: 14, color: "#5a4020", display: "flex", gap: 8, alignItems: "center" }}>
-                                <span style={{ color: "#b5622a", fontSize: 16 }}>🍳</span> {item}
+                                <EquipmentThumb name={item} delay={i * 200} />
+                                {item}
                               </li>
                             ))}
                           </ul>
