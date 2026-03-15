@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 
 const SAMPLE_RECIPES = [];
 
@@ -148,6 +148,79 @@ const generateRecipeImage = async (recipe) => {
   console.log("[Gemini Image] response:", JSON.stringify(data).slice(0, 500));
   const b64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
   return b64 ? `data:image/png;base64,${b64}` : null;
+};
+
+// --- Ingredient image cache (localStorage) ---
+const INGREDIENT_CACHE_KEY = "ma_cuisine_ingredient_imgs_v1";
+
+const readIngredientCache = () => {
+  try { return JSON.parse(localStorage.getItem(INGREDIENT_CACHE_KEY) || "{}"); }
+  catch { return {}; }
+};
+
+const writeIngredientCache = (cache) => {
+  try { localStorage.setItem(INGREDIENT_CACHE_KEY, JSON.stringify(cache)); }
+  catch {} // storage full — silently skip
+};
+
+const generateIngredientImage = async (name) => {
+  const key = name.toLowerCase().trim();
+  const cached = readIngredientCache()[key];
+  if (cached) return cached;
+
+  const prompt = `Minimalist, clean, top-down food photography of ${name} on a pure white background. Single ingredient only, no text, no labels, soft natural lighting, cookbook style.`;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ["IMAGE"] },
+      }),
+    }
+  );
+  const data = await res.json();
+  const b64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+  if (!b64) return null;
+
+  const url = `data:image/png;base64,${b64}`;
+  writeIngredientCache({ ...readIngredientCache(), [key]: url });
+  return url;
+};
+
+const IngredientThumb = ({ name, delay = 0 }) => {
+  const key = name.toLowerCase().trim();
+  const cachedSrc = readIngredientCache()[key];
+  const [src, setSrc] = useState(cachedSrc || null);
+  const [loading, setLoading] = useState(!cachedSrc);
+
+  useEffect(() => {
+    if (src) return;
+    let alive = true;
+    const timer = setTimeout(() => {
+      generateIngredientImage(name)
+        .then(url => { if (alive) { setSrc(url || null); setLoading(false); } })
+        .catch(() => { if (alive) setLoading(false); });
+    }, delay);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [name, delay]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div style={{
+      width: 44, height: 44, borderRadius: 8, overflow: "hidden",
+      background: "#f5f0e8", flexShrink: 0, border: "1px solid #e8ddc8",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      {src ? (
+        <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : loading ? (
+        <div style={{ width: 16, height: 16, border: "2px solid #e8ddc8", borderTopColor: "#b5622a", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      ) : (
+        <span style={{ fontSize: 18 }}>🥄</span>
+      )}
+    </div>
+  );
 };
 
 const getRecipeInLang = (recipe, lang) => {
@@ -611,9 +684,12 @@ export default function RecipeApp() {
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Ingredients</h3>
                       <ul style={{ listStyle: "none" }}>
                         {r.ingredients?.map((ing, i) => (
-                          <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 8 }}>
-                            <span style={{ fontWeight: 600, minWidth: 80, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
-                            <span>{ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
+                          <li key={i} style={{ padding: "7px 0", borderBottom: "1px solid #f5f0e8", fontSize: 15, display: "flex", gap: 10, alignItems: "center" }}>
+                            <IngredientThumb name={ing.name} delay={i * 300} />
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontWeight: 600, color: "#b5622a" }}>{ing.amount} {ing.unit}</span>
+                              <span> {ing.name}{ing.note && <em style={{ color: "#9a8060", fontSize: 13 }}>, {ing.note}</em>}</span>
+                            </div>
                           </li>
                         ))}
                       </ul>
