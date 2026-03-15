@@ -204,6 +204,30 @@ const renderBold = (text) => {
   );
 };
 
+// Returns ingredients + equipment mentioned in a single step instruction
+const getMentionedItems = (step, recipe) => {
+  const text = (step.instruction || "").toLowerCase();
+  const result = [];
+  const seen = new Set();
+  for (const ing of (recipe.ingredients || [])) {
+    const n = ing.name.toLowerCase().trim();
+    const variants = [n, n + "s", n + "es", n.endsWith("s") ? n.slice(0, -1) : n + "x"];
+    if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
+      seen.add(n);
+      result.push({ type: "ingredient", name: ing.name, amount: ing.amount, unit: ing.unit });
+    }
+  }
+  for (const eq of (recipe.equipment || [])) {
+    const n = eq.toLowerCase().trim();
+    const variants = [n, n + "s", n.endsWith("s") ? n.slice(0, -1) : n + "x"];
+    if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
+      seen.add(n);
+      result.push({ type: "equipment", name: eq });
+    }
+  }
+  return result;
+};
+
 const generateRecipeImage = async (recipe) => {
   const directions = ["top-right", "top-left", "bottom-right", "bottom-left"];
   const randomDirection = directions[Math.floor(Math.random() * directions.length)];
@@ -653,7 +677,27 @@ export default function RecipeApp() {
   const [exportedRecipe, setExportedRecipe] = useState(null);
   const [viewLang, setViewLang] = useState("en");
   const [contextualMessages, setContextualMessages] = useState(null);
+  const [cookMode, setCookMode]   = useState(null);  // recipe object | null
+  const [cookStep, setCookStep]   = useState(-1);    // -1=intro, 0..N-1=steps, N=done
   const fileRef = useRef();
+
+  // Cook mode keyboard navigation
+  useEffect(() => {
+    if (!cookMode) return;
+    const totalSteps = cookMode.steps?.length ?? 0;
+    const handler = (e) => {
+      if (e.key === "Escape") { setCookMode(null); setCookStep(-1); }
+      else if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
+        e.preventDefault();
+        setCookStep(s => Math.min(s + 1, totalSteps));
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setCookStep(s => Math.max(s - 1, -1));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [cookMode]);
 
   const categories = ["All", ...new Set(recipes.map(r => r.category).filter(Boolean))];
 
@@ -889,6 +933,18 @@ export default function RecipeApp() {
         .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; padding-top: 20px; border-top: 1px solid #f0ebe0; }
         .stepper-connector { width: 56px; height: 2px; margin-bottom: 20px; flex-shrink: 0; }
         .lang-tabs-row { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+
+        /* ── Cook Mode Overlay ── */
+        .cook-overlay { position: fixed; inset: 0; z-index: 9999; background: #0e0804; display: flex; flex-direction: column; }
+        .cook-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid #1e1208; flex-shrink: 0; }
+        .cook-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; position: relative; overflow: hidden; cursor: pointer; }
+        .cook-instruction { font-family: 'Crimson Text', serif; color: #faf7f2; text-align: center; line-height: 1.5; max-width: 780px; font-size: clamp(26px, 5vw, 50px); }
+        .cook-instruction strong { color: #c8916a; }
+        .cook-chip { display: flex; align-items: center; gap: 6px; background: #1a0e06; border: 1px solid #3a2418; border-radius: 20px; padding: 4px 12px 4px 4px; font-size: 14px; color: #c8b090; }
+        @keyframes cookFadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        .cook-step-enter { animation: cookFadeUp 0.38s cubic-bezier(.22,.68,0,1.2) both; }
+        @keyframes cookPulse { 0%,100% { opacity: .25 } 50% { opacity: .6 } }
+        .cook-arrow { font-size: 28px; position: absolute; top: 50%; transform: translateY(-50%); color: #3a2418; animation: cookPulse 2.5s ease infinite; pointer-events: none; user-select: none; }
 
         /* ── Mobile overrides (≤ 640 px) ── */
         @media (max-width: 640px) {
@@ -1189,30 +1245,7 @@ export default function RecipeApp() {
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 14 }}>Method</h3>
                       <ol style={{ listStyle: "none" }}>
                         {r.steps?.map((step, i) => {
-                          // Find which ingredients / equipment are mentioned in this step
-                          const text = (step.instruction || "").toLowerCase();
-                          const mentionedItems = [];
-                          const seen = new Set();
-                          const countableUnits = new Set(["","whole","piece","pieces","pcs","pc","slice","slices","clove","cloves","sprig","sprigs","leaf","leaves","stalk","stalks","head","heads","bunch","bunches","strip","strips"]);
-                          for (const ing of (r.ingredients || [])) {
-                            const n = ing.name.toLowerCase().trim();
-                            const variants = [n, n + "s", n + "es", n.endsWith("s") ? n.slice(0,-1) : n + "x"];
-                            if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
-                              seen.add(n);
-                              // For step chips, don't encode quantity in the name display
-                              // but keep amount/unit so the same cached image is reused
-                              mentionedItems.push({ type: "ingredient", name: ing.name, amount: ing.amount, unit: ing.unit });
-                            }
-                          }
-                          for (const eq of (r.equipment || [])) {
-                            const n = eq.toLowerCase().trim();
-                            const variants = [n, n + "s", n.endsWith("s") ? n.slice(0,-1) : n + "x"];
-                            if (n.length > 2 && variants.some(v => text.includes(v)) && !seen.has(n)) {
-                              seen.add(n);
-                              mentionedItems.push({ type: "equipment", name: eq });
-                            }
-                          }
-
+                          const mentionedItems = getMentionedItems(step, r);
                           return (
                             <li key={i} style={{ display: "flex", gap: 12, marginBottom: 20 }}>
                               <span style={{ background: "#b5622a", color: "#faf7f2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{step.step || i + 1}</span>
@@ -1251,6 +1284,13 @@ export default function RecipeApp() {
                   </div>
 
                   <div className="action-row">
+                    <button
+                      className="btn-primary"
+                      style={{ flex: 1, background: "#4a7c59", fontSize: 17 }}
+                      onClick={() => { setCookMode(r); setCookStep(-1); }}
+                    >
+                      👨‍🍳 Start Cooking
+                    </button>
                     <button className="btn-primary" onClick={() => exportCookidoo(r)} style={{ flex: 1 }}>
                       {exportedRecipe === selectedRecipe.id ? "✓ Downloaded!" : "🌀 Export for Cookidoo"}
                     </button>
@@ -1264,6 +1304,160 @@ export default function RecipeApp() {
           );
         })()}
       </main>
+
+      {/* ── Cook Mode Fullscreen Overlay ── */}
+      {cookMode && (() => {
+        const r = cookMode;
+        const steps = r.steps || [];
+        const totalSteps = steps.length;
+        const isIntro = cookStep === -1;
+        const isDone  = cookStep >= totalSteps;
+        const step    = (!isIntro && !isDone) ? steps[cookStep] : null;
+        const progress = isIntro ? 0 : isDone ? 100 : Math.round(((cookStep + 1) / totalSteps) * 100);
+        const items = step ? getMentionedItems(step, r) : [];
+
+        const exitCook = () => { setCookMode(null); setCookStep(-1); };
+        const goNext = () => {
+          if (isDone) exitCook();
+          else setCookStep(s => s + 1);
+        };
+        const goPrev = () => setCookStep(s => Math.max(s - 1, -1));
+
+        const handleBodyClick = (e) => {
+          const pct = e.clientX / window.innerWidth;
+          if (pct < 0.3 && !isIntro) goPrev();
+          else goNext();
+        };
+
+        return (
+          <div className="cook-overlay">
+            {/* Progress bar */}
+            <div style={{ height: 3, background: "#1a0e06", width: "100%", flexShrink: 0 }}>
+              <div style={{ width: `${progress}%`, height: "100%", background: "#b5622a", transition: "width 0.5s cubic-bezier(.4,0,.2,1)" }} />
+            </div>
+
+            {/* Header */}
+            <div className="cook-header">
+              <div>
+                <p style={{ fontFamily: "'Playfair Display', serif", color: "#c8916a", fontSize: 13, letterSpacing: "0.8px", textTransform: "uppercase", margin: 0 }}>
+                  {r.title}
+                </p>
+                <p style={{ color: "#5a4020", fontSize: 12, margin: "2px 0 0" }}>
+                  {isIntro ? "Prepare your mise en place" : isDone ? "Complete!" : `Step ${cookStep + 1} of ${totalSteps}`}
+                </p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); exitCook(); }}
+                style={{ background: "none", border: "1px solid #2c2010", color: "#5a4020", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontFamily: "'Crimson Text', serif" }}
+              >
+                ✕ Exit
+              </button>
+            </div>
+
+            {/* Body — tap to navigate */}
+            <div className="cook-body" onClick={handleBodyClick}>
+
+              {/* Intro screen */}
+              {isIntro && (
+                <div className="cook-step-enter" style={{ textAlign: "center", maxWidth: 680, zIndex: 1 }}>
+                  <p style={{ fontSize: 56, marginBottom: 16 }}>👨‍🍳</p>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", color: "#faf7f2", fontSize: "clamp(26px,5vw,44px)", marginBottom: 8 }}>
+                    Ready to cook?
+                  </h2>
+                  <p style={{ color: "#5a4020", fontSize: 15, marginBottom: 28 }}>
+                    Gather your ingredients before we start:
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+                    {r.ingredients?.map((ing, i) => (
+                      <div key={i} className="cook-chip">
+                        <IngredientThumb name={ing.name} amount={ing.amount} unit={ing.unit} size={34} delay={i * 60} />
+                        <span>
+                          <span style={{ color: "#b5622a", fontWeight: 600, marginRight: 4 }}>{ing.amount} {ing.unit}</span>
+                          {ing.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color: "#3a2418", fontSize: 14, marginTop: 36, letterSpacing: "0.5px" }}>
+                    TAP ANYWHERE TO BEGIN →
+                  </p>
+                </div>
+              )}
+
+              {/* Step screen */}
+              {step && (
+                <div key={cookStep} className="cook-step-enter" style={{ textAlign: "center", maxWidth: 780, zIndex: 1, pointerEvents: "none", padding: "0 48px" }}>
+                  {/* Step circle */}
+                  <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#b5622a", color: "#faf7f2", fontSize: 24, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", fontFamily: "'Playfair Display', serif", boxShadow: "0 0 0 8px #1e1008" }}>
+                    {cookStep + 1}
+                  </div>
+
+                  {/* Instruction */}
+                  <p className="cook-instruction">{renderBold(step.instruction)}</p>
+
+                  {/* Duration / temp badges */}
+                  {(step.duration || step.temp) && (
+                    <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
+                      {step.duration && (
+                        <span style={{ background: "#1a0e06", border: "1px solid #3a2418", borderRadius: 20, padding: "7px 18px", color: "#c8916a", fontSize: 17 }}>
+                          ⏱ {step.duration} min
+                        </span>
+                      )}
+                      {step.temp && (
+                        <span style={{ background: "#1a0e06", border: "1px solid #3a2418", borderRadius: 20, padding: "7px 18px", color: "#c8916a", fontSize: 17 }}>
+                          🌡 {step.temp}°C
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Ingredient / equipment chips */}
+                  {items.length > 0 && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 28 }}>
+                      {items.map((item, j) => (
+                        <div key={j} className="cook-chip">
+                          {item.type === "ingredient"
+                            ? <IngredientThumb name={item.name} amount={item.amount} unit={item.unit} size={30} delay={j * 60} />
+                            : <EquipmentThumb name={item.name} size={30} delay={j * 60} />
+                          }
+                          {item.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Done screen */}
+              {isDone && (
+                <div className="cook-step-enter" style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 72, marginBottom: 12 }}>🎉</p>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", color: "#faf7f2", fontSize: "clamp(30px,5vw,52px)", margin: "0 0 12px" }}>
+                    Bon appétit!
+                  </h2>
+                  <p style={{ color: "#5a4020", fontSize: 17, marginBottom: 36 }}>
+                    {r.title} is ready to serve.
+                  </p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); exitCook(); }}
+                    style={{ background: "#b5622a", color: "#faf7f2", border: "none", padding: "14px 36px", borderRadius: 6, fontSize: 18, fontFamily: "'Crimson Text', serif", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    Back to recipe
+                  </button>
+                </div>
+              )}
+
+              {/* Directional hint arrows */}
+              {!isDone && (
+                <>
+                  {!isIntro && <div className="cook-arrow" style={{ left: 20 }}>‹</div>}
+                  <div className="cook-arrow" style={{ right: 20 }}>{cookStep === totalSteps - 1 ? "✓" : "›"}</div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
