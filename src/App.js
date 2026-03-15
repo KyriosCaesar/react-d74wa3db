@@ -1132,8 +1132,8 @@ export default function RecipeApp() {
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
 
         /* ── Base layout classes (desktop defaults) ── */
-        .site-header { padding: 14px 32px; gap: 10px; }
-        .header-buttons { display: flex; gap: 12px; flex-shrink: 0; }
+        .site-header { padding: 12px 24px; gap: 10px; position: relative; }
+        .header-buttons { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 24px; }
         .main-content { padding: 32px 24px; }
         .library-top { flex-direction: row; align-items: flex-start; }
         .info-grid { grid-template-columns: repeat(3, 1fr); }
@@ -1159,8 +1159,8 @@ export default function RecipeApp() {
 
         /* ── Mobile overrides (≤ 640 px) ── */
         @media (max-width: 640px) {
-          .site-header { padding: 10px 14px; flex-wrap: wrap; }
-          .header-buttons { width: 100%; justify-content: space-between; }
+          .site-header { padding: 10px 14px; }
+          .header-buttons { padding: 6px 14px; }
           .main-content { padding: 16px 14px; }
           .drop-zone { padding: 28px 16px; }
           .library-top { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -1179,23 +1179,48 @@ export default function RecipeApp() {
         }
       `}</style>
 
-      {/* Header */}
-      <header className="site-header" style={{ background: "#2c2416", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#faf7f2", fontWeight: 900, letterSpacing: "-0.5px" }}>
-            Ma Cuisine
-          </h1>
-          <p style={{ color: "#c8a97e", fontSize: 13, marginTop: 2, fontStyle: "italic" }}>Your personal recipe library</p>
+      {/* ── Top bar ── */}
+      <header className="site-header" style={{ background: "#faf7f2", borderBottom: "1px solid #e8ddc8", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+        {/* Hamburger */}
+        <button style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 6, display: "flex", flexDirection: "column", gap: 4.5, alignItems: "flex-start" }}>
+          <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
+          <span style={{ display: "block", width: 22, height: 2, background: "#2c2416", borderRadius: 2 }} />
+          <span style={{ display: "block", width: 15, height: 2, background: "#2c2416", borderRadius: 2 }} />
+        </button>
+
+        {/* Logo + name — absolutely centred */}
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 9, pointerEvents: "none" }}>
+          <img src="/favicon.png" alt="" style={{ height: 30, width: "auto" }} />
+          <span style={{ fontWeight: 700, fontSize: 20, color: "#1a1208", fontFamily: "system-ui, -apple-system, sans-serif", letterSpacing: "-0.3px" }}>
+            Cookable
+          </span>
         </div>
-        <div className="header-buttons">
-          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e", whiteSpace: "nowrap" }} onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}>
-            📚 Library ({recipes.length})
-          </button>
-          <button className="btn-primary" style={{ whiteSpace: "nowrap" }} onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}>
-            + Digitize
-          </button>
+
+        {/* Profile placeholder */}
+        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#e8ddc8", border: "2px solid #d4c5a9", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="8" r="4" fill="#b8a888" />
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#b8a888" strokeWidth="2" strokeLinecap="round" />
+          </svg>
         </div>
       </header>
+
+      {/* ── Secondary nav: Library / Digitize ── */}
+      <div className="header-buttons" style={{ background: "#faf7f2", borderBottom: "1px solid #e8ddc8" }}>
+        <button
+          className={`nav-tab${view === "library" ? " active" : ""}`}
+          onClick={() => { setView("library"); setPreviewImages([]); setExtractedRecipe(null); }}
+        >
+          📚 Library <span style={{ color: "#b8a888", fontSize: 13, fontWeight: 400 }}>({recipes.length})</span>
+        </button>
+        <button
+          className="btn-primary"
+          style={{ fontSize: 14, padding: "7px 18px" }}
+          onClick={() => { setView("digitize"); setPreviewImages([]); setExtractedRecipe(null); setError(null); setViewLang("en"); }}
+        >
+          + Digitize
+        </button>
+      </div>
 
       <main className="main-content" style={{ maxWidth: 1100, margin: "0 auto" }}>
 
