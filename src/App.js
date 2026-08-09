@@ -39,6 +39,9 @@ export default function RecipeApp() {
   const [extractedRecipe, setExtractedRecipe] = useState(null);
   const [error, setError] = useState(null);
   const [exportedRecipe, setExportedRecipe] = useState(null);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("ma_cuisine_anthropic_key") || "");
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
   const fileRef = useRef();
 
   const categories = ["All", ...new Set(recipes.map(r => r.category).filter(Boolean))];
@@ -57,6 +60,11 @@ export default function RecipeApp() {
     setError(null);
     setExtractedRecipe(null);
 
+    if (!apiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result.split(",")[1];
@@ -67,7 +75,12 @@ export default function RecipeApp() {
       try {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true"
+          },
           body: JSON.stringify({
             model: "claude-opus-4-5",
             max_tokens: 2000,
@@ -85,8 +98,13 @@ export default function RecipeApp() {
         });
 
         const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error?.message || `Request failed (${response.status}).`);
+        }
+
         const text = data.content?.find(b => b.type === "text")?.text || "";
-        
+
         let parsed;
         try {
           parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
@@ -105,7 +123,7 @@ export default function RecipeApp() {
       }
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [apiKey]);
 
   const saveRecipe = () => {
     if (!extractedRecipe) return;
@@ -196,6 +214,9 @@ export default function RecipeApp() {
           <p style={{ color: "#c8a97e", fontSize: 13, marginTop: 2, fontStyle: "italic" }}>Your personal recipe library</p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setApiKeyDraft(apiKey); setShowApiKeyModal(true); }}>
+            ⚙ {apiKey ? "API Key Set" : "Set API Key"}
+          </button>
           <button className="btn-ghost" style={{ borderColor: "#c8a97e55", color: "#c8a97e" }} onClick={() => { setView("library"); setPreviewImage(null); setExtractedRecipe(null); }}>
             📚 Library ({recipes.length})
           </button>
@@ -204,6 +225,48 @@ export default function RecipeApp() {
           </button>
         </div>
       </header>
+
+      {showApiKeyModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(44,36,22,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
+          onClick={() => setShowApiKeyModal(false)}
+        >
+          <div
+            style={{ background: "#fdf9f3", borderRadius: 8, padding: 28, width: 420, maxWidth: "90vw", border: "1px solid #e8ddc8" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 8 }}>Anthropic API Key</h3>
+            <p style={{ fontSize: 14, color: "#7a6040", marginBottom: 16, lineHeight: 1.5 }}>
+              Needed to extract recipes with Claude. Stored only in this browser's local storage — never sent anywhere but api.anthropic.com.
+            </p>
+            <input
+              className="input"
+              type="password"
+              placeholder="sk-ant-..."
+              value={apiKeyDraft}
+              onChange={e => setApiKeyDraft(e.target.value)}
+              style={{ marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn-primary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  const trimmed = apiKeyDraft.trim();
+                  setApiKey(trimmed);
+                  localStorage.setItem("ma_cuisine_anthropic_key", trimmed);
+                  setShowApiKeyModal(false);
+                }}
+              >
+                Save
+              </button>
+              <button className="btn-ghost" style={{ flex: 1 }} onClick={() => setShowApiKeyModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
 
